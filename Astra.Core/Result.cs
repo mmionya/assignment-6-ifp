@@ -1,0 +1,31 @@
+namespace Astra.Core;
+
+// Map transforms a successful value; Bind chains an operation that can fail.
+public sealed class Result<T>
+{
+    private readonly T? value;
+    public string? Error { get; }
+    public bool IsSuccess => Error is null;
+    public T Value => IsSuccess && value is T present
+        ? present : throw new InvalidOperationException(Error ?? "No value.");
+
+    private Result(T? value, string? error) => (this.value, Error) = (value, error);
+
+    public static Result<T> Success(T value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new(value, null);
+    }
+
+    public static Result<T> Failure(string error)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+        return new(default, error);
+    }
+
+    public Result<U> Map<U>(Func<T, U> transform) => Error is { } error
+        ? Result<U>.Failure(error) : Result<U>.Success(transform(Value));
+
+    public Result<U> Bind<U>(Func<T, Result<U>> next) => Error is { } error
+        ? Result<U>.Failure(error) : next(Value);
+}

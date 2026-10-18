@@ -1,0 +1,8 @@
+[
+  { "Id": "A", "Destination": "moon", "Passengers": 1, "TravelClass": "explorer", "Departure": "2030-06-15", "IsCancelled": false },
+  { "Id": "B", "Destination": "moon", "Passengers": 4, "TravelClass": "premium", "Departure": "2030-06-15", "IsCancelled": false },
+  { "Id": "C", "Destination": "mars", "Passengers": 6, "TravelClass": "first", "Departure": "2030-09-10", "IsCancelled": false },
+  { "Id": "D", "Destination": "europa", "Passengers": 1, "TravelClass": "explorer", "Departure": "2031-03-20", "IsCancelled": false },
+  { "Id": "E", "Destination": "moon", "Passengers": 2, "TravelClass": "explorer", "Departure": "2030-06-15", "IsCancelled": true },
+  { "Id": "F", "Destination": "mars", "Passengers": 3, "TravelClass": "explorer", "Departure": "2030-09-10", "IsCancelled": false }
+]

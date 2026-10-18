@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/TestResults/
+output/
+.vs/
+.idea/
+.vscode/
+*.user
+*.zip
+.env
+.env.*

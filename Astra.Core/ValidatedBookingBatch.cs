@@ -1,0 +1,59 @@
+using System.Collections.Immutable;
+
+namespace Astra.Core;
+
+// Optional fields retain the distinction between a missing value and legitimate false/0.
+public sealed record RawBooking(string? Id, Destination? Destination, int? Passengers,
+    TravelClass? TravelClass, DateOnly? Departure, bool? IsCancelled);
+
+// A checked batch is a capability to run the quote pipeline, not just an unchecked array.
+// No public constructor, setters, init properties, or record `with` can bypass this factory.
+public sealed class ValidatedBookingBatch
+{
+    public const int MaximumPassengers = 6;
+    public const int MaximumIdLength = 40;
+
+    public ImmutableArray<BookingRequest> Bookings { get; }
+
+    private ValidatedBookingBatch(ImmutableArray<BookingRequest> bookings) => Bookings = bookings;
+
+    public static Result<ValidatedBookingBatch> Create(IEnumerable<RawBooking?>? rows)
+    {
+        if (rows is null)
+            return Result<ValidatedBookingBatch>.Failure("Dataset is missing.");
+
+        var snapshot = rows.ToArray();
+        var bookings = ImmutableArray.CreateBuilder<BookingRequest>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            var row = snapshot[i];
+            if (row is null || row.Id is null || row.Destination is null || row.Passengers is null ||
+                row.TravelClass is null || row.Departure is null || row.IsCancelled is null)
+                return Result<ValidatedBookingBatch>.Failure(
+                    $"Record {i + 1}: Id, Destination, Passengers, TravelClass, Departure and IsCancelled are required.");
+
+            var id = row.Id.Trim();
+            string? error = null;
+            if (id.Length is 0 or > MaximumIdLength || row.Id.Any(char.IsControl))
+                error = $"Id must contain 1 to {MaximumIdLength} visible characters";
+            else if (!ids.Add(id))
+                error = "Id must be unique after trimming (case-sensitive)";
+            else if (!Enum.IsDefined(row.Destination.Value) || !Enum.IsDefined(row.TravelClass.Value))
+                error = "unknown destination or travel class";
+            else if (row.Passengers is < 1 or > MaximumPassengers)
+                error = $"Passengers must be between 1 and {MaximumPassengers}";
+            else if (row.Departure != BookingPipeline.GetMission(row.Destination.Value).Departure)
+                error = "Departure must match the mission schedule";
+
+            if (error is not null)
+                return Result<ValidatedBookingBatch>.Failure($"Record {i + 1}: {error}.");
+
+            bookings.Add(new BookingRequest(id, row.Destination.Value, row.Passengers.Value,
+                row.TravelClass.Value, row.Departure.Value, row.IsCancelled.Value));
+        }
+
+        // A later invalid row discards the local builder: no partially valid batch escapes.
+        return Result<ValidatedBookingBatch>.Success(new ValidatedBookingBatch(bookings.ToImmutable()));
+    }
+}

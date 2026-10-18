@@ -1,0 +1,10 @@
+[
+  {
+    "Id": "WRONG-DEPARTURE",
+    "Destination": "moon",
+    "Passengers": 1,
+    "TravelClass": "explorer",
+    "Departure": "2030-06-16",
+    "IsCancelled": false
+  }
+]

@@ -1,0 +1,38 @@
+ASTRA / Assignment 6 - English edition verification
+Date: 2026-10-18 (Asia/Almaty)
+Environment: Linux x64, .NET SDK 10.0.112; target net10.0.
+Working directory: a new temporary directory extracted from the updated submission ZIP.
+Before build: no bin/obj folders.
+
+LATEST RESULTS
+All tracked project text is English: README, code/comments, test names, application messages,
+sample input and verification notes. No Cyrillic text remains in tracked files.
+Build: succeeded, 0 warnings, 0 errors.
+xUnit: 49 passed, 0 failed, 0 skipped (29 retained A5 cases + 20 A6 cases).
+The TRX result counters were checked, and the console log identifies the xUnit.net adapter.
+Test framework: xunit 2.9.3, xunit.runner.visualstudio 3.1.1,
+Microsoft.NET.Test.Sdk 17.13.0; IsTestProject=true.
+Tests use 33 Fact methods and 3 Theory methods with 16 InlineData rows.
+Normal command: 4 quotes; standard 33433600.00 USD; group 30815140.00 USD.
+Demo: missing prerequisite and invalid second row rejected; success 49000.00 USD;
+      repeated Completed is the same object, total policy calls remain 1.
+
+COMMANDS (from the extracted project root)
+dotnet build Astra.slnx
+dotnet test Astra.slnx --logger "console;verbosity=normal" --logger "trx;LogFileName=xunit-results.trx" --results-directory <temporary-results-directory>
+dotnet run --project Astra.App -- samples/bookings.json both 2030-06-15
+dotnet run --project Astra.App -- demo
+
+PREVIOUS FUNCTIONAL BASELINE (2026-10-18, same application and test sources)
+All 16 application scenarios passed with expected stdout/stderr and exit codes:
+normal both-policy calculation; temporal-coupling demo; standard; group; empty input;
+day after Moon departure; date after all departures; invalid passengers; invalid schedule;
+missing fields; malformed JSON; missing input file; no arguments; unknown policy;
+invalid CLI date; help.
+A temporary MaximumPassengers change from 6 to 5 caused the boundary test to fail as expected.
+The source was restored; the delivered limit is 6. The English update changes documentation only.
+
+PACKAGING
+The ZIP includes tracked source, project/solution/configuration files, README, this report and samples.
+It excludes bin, obj, IDE caches, Git metadata, SDK files and local output artifacts.
+The final archive contains the same verified source/data; this report was updated after verification.
