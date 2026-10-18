@@ -282,4 +282,46 @@ public class TemporalCouplingTests
         Assert.Same(completed, QuoteWorkflow.Calculate(completed).Value);
         Assert.Equal(1, calls);
     }
+    [Theory]
+    [InlineData("A\u2028B")]   // line separator
+    [InlineData("A\u200BB")]   // zero-width space
+    public void FactoryRejectsInvisibleUnicodeInIds(string id) =>
+    FailsWith(ValidatedBookingBatch.Create(new[] { Moon(id) }), "1 to 40 visible characters");
+
+    [Fact]
+    public void FactoryAcceptsInnerSpacesCancelledAndNonBookableRows()
+    {
+        var europa = new RawBooking("E", Destination.Europa, 1, TravelClass.Explorer, new DateOnly(2031, 3, 20), false);
+        var batch = ValidatedBookingBatch.Create(new[] { Moon("Moon 1") with { IsCancelled = true }, europa }).Value;
+        Assert.Equal(new[] { "Moon 1", "E" }, batch.Bookings.Select(b => b.Id));
+        Assert.True(batch.Bookings[0].IsCancelled);
+    }
+
+    [Fact]
+    public void FactoryRejectsCancelledRowWithWrongDeparture() =>
+        FailsWith(ValidatedBookingBatch.Create(new[] { Moon() with { IsCancelled = true, Departure = AsOf.AddDays(1) } }),
+            "Departure must match the mission schedule");
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(int.MaxValue)]
+    public void FactoryRejectsNegativeAndHugePassengerCounts(int count) =>
+        FailsWith(ValidatedBookingBatch.Create(new[] { Moon(passengers: count) }), "Passengers must be between 1 and 6");
+
+    [Fact]
+    public void FactoryReportsTheFirstInvalidRecordAndEnumeratesOnce()
+    {
+        var enumerations = 0;
+        IEnumerable<RawBooking?> Rows()
+        {
+            enumerations++;
+            yield return Moon("A", 0);
+            yield return Moon(" ");
+        }
+
+        var result = ValidatedBookingBatch.Create(Rows());
+
+        FailsWith(result, "Record 1: Passengers");
+        Assert.Equal(1, enumerations);
+    }
 }

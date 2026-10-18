@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Globalization;
+
 
 namespace Astra.Core;
 
@@ -15,6 +17,8 @@ public sealed class ValidatedBookingBatch
     public ImmutableArray<BookingRequest> Bookings { get; }
 
     private ValidatedBookingBatch(ImmutableArray<BookingRequest> bookings) => Bookings = bookings;
+
+    private static bool IsVisible(char c) => !char.IsControl(c) && char.GetUnicodeCategory(c) is not (UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator);
 
     public static Result<ValidatedBookingBatch> Create(IEnumerable<RawBooking?>? rows)
     {
@@ -34,7 +38,7 @@ public sealed class ValidatedBookingBatch
 
             var id = row.Id.Trim();
             string? error = null;
-            if (id.Length is 0 or > MaximumIdLength || row.Id.Any(char.IsControl))
+            if (id.Length is 0 or > MaximumIdLength || row.Id.All(IsVisible))
                 error = $"Id must contain 1 to {MaximumIdLength} visible characters";
             else if (!ids.Add(id))
                 error = "Id must be unique after trimming (case-sensitive)";
