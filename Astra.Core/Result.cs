@@ -1,6 +1,6 @@
 namespace Astra.Core;
 
-// Map transforms a successful value; Bind chains an operation that can fail.
+// Map changes a successful value. Bind runs the next step, which can also fail.
 public sealed class Result<T>
 {
     private readonly T? value;

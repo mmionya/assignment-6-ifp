@@ -13,7 +13,7 @@ public sealed record QuoteSummary(ImmutableArray<BookingQuote> Quotes, decimal T
 
 public static class BookingPipeline
 {
-    // Fixed fictional schedule and prices from ASTRA's missions.html and booking.html.
+    // These sample prices and dates come from the ASTRA website.
     public static Mission GetMission(Destination destination) => destination switch
     {
         Destination.Moon => new(49_000m, new(2030, 6, 15), true),
@@ -37,19 +37,19 @@ public static class BookingPipeline
     public static decimal GroupDiscount(BookingRequest booking) =>
         Standard(booking) * (booking.Passengers >= 4 ? 0.90m : 1m);
 
-    // Stage 1: select active, bookable departures on or after the explicit review date.
+    // Keep active requests for available trips on or after the review date.
     internal static ImmutableArray<BookingRequest> SelectBookable(
         ImmutableArray<BookingRequest> bookings, DateOnly asOf) =>
         bookings.Where(b => !b.IsCancelled && GetMission(b.Destination).IsBookable
             && b.Departure >= asOf).ToImmutableArray();
 
-    // Stage 2: higher-order function; the caller supplies the pricing rule.
+    // Use the chosen pricing rule and round each quote to cents.
     internal static ImmutableArray<BookingQuote> CalculateQuotes(
         ImmutableArray<BookingRequest> bookings, Func<BookingRequest, decimal> pricePolicy) =>
         bookings.Select(b => new BookingQuote(b,
             decimal.Round(pricePolicy(b), 2, MidpointRounding.AwayFromZero))).ToImmutableArray();
 
-    // Stage 3: produce a sorted, immutable summary with the sum of rounded quotes.
+    // Sort by price, use Id to break ties, and add up the rounded quotes.
     internal static QuoteSummary Summarize(ImmutableArray<BookingQuote> quotes) => new(
         quotes.OrderBy(q => q.TotalUsd).ThenBy(q => q.Booking.Id, StringComparer.Ordinal).ToImmutableArray(),
         quotes.Sum(q => q.TotalUsd));

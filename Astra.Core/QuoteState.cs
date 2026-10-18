@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Astra.Core;
 
-// Closed discriminated-union-style hierarchy. Only the three nested sealed cases can exist.
+// These are the only three states a quote can be in.
 public abstract class QuoteState
 {
     private QuoteState() { }

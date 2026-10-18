@@ -4,7 +4,13 @@ Environment: Linux x64, .NET SDK 10.0.112; target net10.0.
 Working directory: a new temporary directory extracted from the updated submission ZIP.
 Before build: no bin/obj folders.
 
-LATEST RESULTS
+COMMENT UPDATE (2026-10-18)
+Reworded comments in eight C# files using simpler English.
+All non-comment lines were compared with commit e013db8 and are unchanged.
+Tests were not rerun for this comment-only update; the last xUnit results are recorded below.
+The submission ZIP was rebuilt and checked against the current tracked files.
+
+MOST RECENT BUILD AND TEST RESULTS (before the comment update)
 All tracked project text is English: README, code/comments, test names, application messages,
 sample input and verification notes. No Cyrillic text remains in tracked files.
 Build: succeeded, 0 warnings, 0 errors.
@@ -23,7 +29,7 @@ dotnet test Astra.slnx --logger "console;verbosity=normal" --logger "trx;LogFile
 dotnet run --project Astra.App -- samples/bookings.json both 2030-06-15
 dotnet run --project Astra.App -- demo
 
-PREVIOUS FUNCTIONAL BASELINE (2026-10-18, same application and test sources)
+PREVIOUS FUNCTIONAL BASELINE (2026-10-18, same executable application and test code)
 All 16 application scenarios passed with expected stdout/stderr and exit codes:
 normal both-policy calculation; temporal-coupling demo; standard; group; empty input;
 day after Moon departure; date after all departures; invalid passengers; invalid schedule;
@@ -35,4 +41,4 @@ The source was restored; the delivered limit is 6. The English update changes do
 PACKAGING
 The ZIP includes tracked source, project/solution/configuration files, README, this report and samples.
 It excludes bin, obj, IDE caches, Git metadata, SDK files and local output artifacts.
-The final archive contains the same verified source/data; this report was updated after verification.
+The final archive matches the current tracked files, including the revised comments and this report.

@@ -10,7 +10,7 @@ internal static class TemporalDemo
         var moon = new RawBooking("MOON-DEMO", Destination.Moon, 1,
             TravelClass.Explorer, asOf, false);
 
-        // Instrumentation belongs only to the demo: normal pricing policies remain pure.
+        // Count calls here so the demo can show whether a calculation ran again.
         var policyCalls = 0;
         decimal CountedStandard(BookingRequest booking)
         {
@@ -98,7 +98,7 @@ internal static class TemporalDemo
             return false;
         }
 
-        // State is replaced only after a successful transition. Failure leaves it untouched.
+        // Replace the current state only when the operation succeeds.
         current = result.Value;
         Console.WriteLine($"Accepted: current state is {StateName(current)}");
         return true;

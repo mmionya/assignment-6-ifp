@@ -2,12 +2,11 @@ using System.Collections.Immutable;
 
 namespace Astra.Core;
 
-// Optional fields retain the distinction between a missing value and legitimate false/0.
+// Nullable fields let us tell a missing value apart from false or 0.
 public sealed record RawBooking(string? Id, Destination? Destination, int? Passengers,
     TravelClass? TravelClass, DateOnly? Departure, bool? IsCancelled);
 
-// A checked batch is a capability to run the quote pipeline, not just an unchecked array.
-// No public constructor, setters, init properties, or record `with` can bypass this factory.
+// Every batch goes through Create before it can be used to calculate quotes.
 public sealed class ValidatedBookingBatch
 {
     public const int MaximumPassengers = 6;
@@ -53,7 +52,7 @@ public sealed class ValidatedBookingBatch
                 row.TravelClass.Value, row.Departure.Value, row.IsCancelled.Value));
         }
 
-        // A later invalid row discards the local builder: no partially valid batch escapes.
+        // We get here only if every row passed validation.
         return Result<ValidatedBookingBatch>.Success(new ValidatedBookingBatch(bookings.ToImmutable()));
     }
 }

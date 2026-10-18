@@ -247,7 +247,7 @@ public class TemporalCouplingTests
         var first = QuoteWorkflow.Calculate(ready).Value;
         var second = QuoteWorkflow.Calculate(ready).Value;
 
-        // Ready is an immutable input, not a cache; only Completed is an idempotent repeat.
+        // Reusing Ready runs the calculation again; reusing Completed returns the existing result.
         Assert.NotSame(first, second);
         Assert.Equal<BookingQuote>(first.Summary.Quotes, second.Summary.Quotes);
         Assert.Equal(first.Summary.TotalUsd, second.Summary.TotalUsd);

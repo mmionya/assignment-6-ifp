@@ -18,7 +18,7 @@ public static class QuoteWorkflow
                 "Missing prerequisite: prepare and validate the batch before calculating quotes."),
             QuoteState.Ready ready => Result<QuoteState.Completed>.Success(new QuoteState.Completed(
                 BookingPipeline.Run(ready.Batch, ready.AsOf, ready.PricePolicy))),
-            // Idempotent: no pricing delegate is called and the very same completed state is returned.
+            // The result is already available, so we can return it without calculating again.
             QuoteState.Completed completed => Result<QuoteState.Completed>.Success(completed),
             _ => Result<QuoteState.Completed>.Failure("Unknown quote state.")
         };

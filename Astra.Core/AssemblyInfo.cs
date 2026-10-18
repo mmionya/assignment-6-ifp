@@ -1,4 +1,4 @@
 using System.Runtime.CompilerServices;
 
-// The individual pure stages are implementation details, but retain direct A5 test coverage.
+// Let the tests check the pipeline stages without making them public.
 [assembly: InternalsVisibleTo("Astra.Tests")]
