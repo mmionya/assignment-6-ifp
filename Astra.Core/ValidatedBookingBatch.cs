@@ -38,7 +38,7 @@ public sealed class ValidatedBookingBatch
 
             var id = row.Id.Trim();
             string? error = null;
-            if (id.Length is 0 or > MaximumIdLength || row.Id.All(IsVisible))
+            if (id.Length is 0 or > MaximumIdLength || !row.Id.All(IsVisible))
                 error = $"Id must contain 1 to {MaximumIdLength} visible characters";
             else if (!ids.Add(id))
                 error = "Id must be unique after trimming (case-sensitive)";
