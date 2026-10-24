@@ -35,9 +35,16 @@ public static class Input
     public static Result<ValidatedBookingBatch> Validate(RawBooking?[]? rows) =>
         ValidatedBookingBatch.Create(rows);
 
+    public static Result<BookingRequest> FindBooking(string? json, string? id) =>
+        Parse(json)
+            .Bind(Validate)
+            .Bind(batch => BookingLookup.Require(batch, id));
+
     public static Result<QuoteSummary> Process(string? json, DateOnly asOf, Func<BookingRequest, decimal> policy) =>
         Parse(json)
             .Bind(rows => QuoteWorkflow.Prepare(new QuoteState.Pending(rows, asOf, policy)))
             .Bind(ready => QuoteWorkflow.Calculate(ready))
             .Map(completed => completed.Summary);
+
+
 }

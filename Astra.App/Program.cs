@@ -17,6 +17,28 @@ if (args is ["--help"] or ["-h"] or ["help"])
     return 0;
 }
 
+if (args is ["find", var findPath, var bookingId])
+{
+    string input;
+    try { input = File.ReadAllText(findPath); }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+    {
+        Console.Error.WriteLine($"Cannot read input '{findPath}': {ex.Message}");
+        return 1;
+    }
+
+    var found = Input.FindBooking(input, bookingId);
+    if (!found.IsSuccess)
+    {
+        Console.Error.WriteLine(found.Error);
+        return 1;
+    }
+
+    var booking = found.Value;
+    Console.WriteLine($"Found booking: {booking.Id}; Destination: {booking.Destination}; " + $"Passengers: {booking.Passengers}; Cancelled: {booking.IsCancelled}");
+    return 0;
+}
+
 if (args.Length != 3 || args[1] is not ("standard" or "group" or "both") ||
     !DateOnly.TryParseExact(args[2], "yyyy-MM-dd", CultureInfo.InvariantCulture,
         DateTimeStyles.None, out var asOf))
