@@ -23,9 +23,26 @@ public sealed class Result<T>
         return new(default, error);
     }
 
-    public Result<U> Map<U>(Func<T, U> transform) => Error is { } error
-        ? Result<U>.Failure(error) : Result<U>.Success(transform(Value));
+    public Result<U> Map<U>(Func<T, U> transform)
+    {
+        ArgumentNullException.ThrowIfNull(transform);
+        return Error is { } error
+            ? Result<U>.Failure(error) : Result<U>.Success(transform(Value));
+    }
 
-    public Result<U> Bind<U>(Func<T, Result<U>> next) => Error is { } error
-        ? Result<U>.Failure(error) : next(Value);
+    public Result<U> Bind<U>(Func<T, Result<U>> next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        return Error is { } error
+            ? Result<U>.Failure(error)
+            : next(Value) ?? throw new InvalidOperationException("Bind must return a Result.");
+    }
+
+    // Handle the outcome once, without reading a failed result's Value.
+    public U Match<U>(Func<T, U> onSuccess, Func<string, U> onFailure)
+    {
+        ArgumentNullException.ThrowIfNull(onSuccess);
+        ArgumentNullException.ThrowIfNull(onFailure);
+        return Error is { } error ? onFailure(error) : onSuccess(Value);
+    }
 }

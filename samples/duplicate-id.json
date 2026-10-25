@@ -1,0 +1,4 @@
+[
+  { "Id": "A", "Destination": "moon", "Passengers": 1, "TravelClass": "explorer", "Departure": "2030-06-15", "IsCancelled": false },
+  { "Id": " A ", "Destination": "moon", "Passengers": 2, "TravelClass": "premium", "Departure": "2030-06-15", "IsCancelled": false }
+]

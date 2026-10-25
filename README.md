@@ -1,220 +1,80 @@
-# ASTRA — Booking Quote Pipeline / Assignment 6
+# ASTRA — Booking Quote Pipeline / Assignment 7
 
-This module continues the **ASTRA Space Travel Agency** project from Assignment 5.
-It validates a batch of booking requests, selects available trips, calculates
-prices using the chosen policy, and returns sorted quotes with a total.
-Its users are visitors comparing prices and the ASTRA operator.
-The module calculates quotes; it does not reserve seats or process payments.
+This is the same **ASTRA Space Travel Agency** project used in Assignments 5–6.
+It reads booking requests, validates the entire batch, selects available trips,
+calculates quotes using a supplied policy, and returns sorted quotes and a total.
+It also looks up a booking by Id. It calculates prices in memory; it does not
+reserve seats, take payments, or write booking data.
 
-The mission catalog, prices, both policies, functional stages, JSON files, and
-Assignment 5 tests are preserved. Assignment 6 adds a protected batch factory,
-explicit states, and safe transitions. The same module will be retained for
-Assignments 7–8 and the future ASTRA server. The original HTML/CSS website does
-not call this C# module yet.
+Assignment 7 uses explicit success/failure and missing-value outcomes in these
+actual workflows. The Assignment 5 pure pipeline and Assignment 6 validated
+factory, immutable state snapshots, and safe transitions remain active. The
+original HTML/CSS website does not call this C# module yet.
 
-## Quick start
+## Build, run, and test
 
-Install **.NET SDK 10.0.112**, not just the Runtime. `global.json` selects this
-version and allows a newer patch within the same 10.0.1xx feature band.
+Install a **.NET 10 SDK**, not only the Runtime.
+`global.json` requests SDK **10.0.112** with `rollForward: latestFeature`, allowing
+a compatible newer .NET 10 feature band. Preview SDKs are disabled.
 SDK: [Download .NET 10](https://dotnet.microsoft.com/en-us/download/dotnet/10.0).
-The application uses the standard library. Tests retain the existing packages:
-xUnit 2.9.3, Microsoft.NET.Test.Sdk 17.13.0, and xunit.runner.visualstudio 3.1.1.
-The first build requires access to NuGet or a local cache containing these packages.
+The application uses the standard library. Existing test packages are unchanged:
+xUnit **2.9.3**, Microsoft.NET.Test.Sdk **17.13.0**, and
+xunit.runner.visualstudio **3.1.1**. The first restore/build requires NuGet access
+or a local cache containing these packages.
 
-On the machine used to prepare this copy, the SDK is installed locally at
-`~/.local/share/assignment-6-dotnet`. Add it to the current bash session's PATH
-before running the commands below. On another computer, install the SDK normally.
-
-```sh
-export PATH="$HOME/.local/share/assignment-6-dotnet:$PATH"
-```
-
-Working directory: **the extracted archive's root**, containing `Astra.slnx` and
-this README. The following commands work on Linux, macOS, and Windows:
+Working directory for all commands: **the extracted archive's root**, containing
+`Astra.slnx`, `global.json`, and this README. No machine-specific PATH is required
+when the SDK is installed normally.
 
 ```sh
 dotnet --version
 dotnet build Astra.slnx
 dotnet run --project Astra.App -- samples/bookings.json both 2030-06-15
+dotnet run --project Astra.App -- find samples/bookings.json A
 dotnet run --project Astra.App -- demo
 dotnet test Astra.slnx
 ```
 
-`both` displays both policies; `standard` and `group` are also supported.
-The review date is an explicit input, so the program does not depend on the
-computer's current date. For help, run `dotnet run --project Astra.App -- --help`.
+`standard`, `group`, and `both` select pricing policies. The review date is an
+explicit input, so the result does not depend on the computer's current date.
+Run `dotnet run --project Astra.App -- --help` to see all commands.
 
-## Task 1. The hidden dependency: before and after
+## Input, domain rules, and expected success
 
-In Assignment 5, `Input.Process` already performed validation in the correct order.
-The weakness was in the core's public API: `BookingPipeline.Run` accepted an
-ordinary `ImmutableArray<BookingRequest>`. External code could construct requests
-manually, skip `Input.Validate`, and still receive a successful calculation.
-
-**Unsafe example of the old API**, kept only in this documentation:
-
-```csharp
-// Assignment 5: this call compiled even though validation had not run.
-var uncheckedRequests = ImmutableArray.Create(new BookingRequest(
-    "BAD", Destination.Moon, 0, TravelClass.Explorer,
-    new DateOnly(2030, 6, 15), false));
-var summary = BookingPipeline.Run(
-    uncheckedRequests, new DateOnly(2030, 6, 15), BookingPipeline.Standard);
-// Quotes.Length == 1, TotalUsd == 0: a quote for ZERO passengers!
-```
-
-The prerequisite is a batch that satisfies every domain rule.
-The hidden order was `Parse → Validate → Run`: validation had to precede
-calculation. Skipping it could produce a zero or negative price, or an exception
-for an unknown destination. Validating after calculation cannot undo a result
-already returned to the caller. This unsafe call no longer compiles in A6.
-
-**The safe application path** (`Astra.App/Input.cs`, `Process`):
-
-```csharp
-return Parse(json)
-    .Bind(rows => QuoteWorkflow.Prepare(new QuoteState.Pending(rows, asOf, policy)))
-    .Bind(ready => QuoteWorkflow.Calculate(ready))
-    .Map(completed => completed.Summary);
-```
-
-`Prepare` calls the factory, and `Calculate` matches the explicit state.
-An arbitrary array cannot be used to construct `Ready`. Calling `Calculate(pending)`
-without `Prepare` returns a `Missing prerequisite` error without invoking the
-pricing policy.
-
-## Task 2. The validated factory
-
-`Astra.Core/ValidatedBookingBatch.cs`, method `ValidatedBookingBatch.Create`:
-
-1. Checks that the dataset, each record, and every required field are present.
-2. Checks Id: 1–40 characters after Trim, no control characters, and uniqueness
-   after Trim using case-sensitive comparison.
-3. Checks that the destination and travel class exist in their enumerations.
-4. Checks the passenger count: **1–6 inclusive**.
-5. Checks that the departure date matches the chosen mission's schedule.
-
-Success returns `Result<ValidatedBookingBatch>.Success` containing a usable batch.
-Failure returns the first error with a specific reason and, for record errors,
-the record number. The local builder never escapes, even when an invalid record
-follows valid ones. No partial successful total is produced.
-`Input.Validate` remains a thin adapter to this factory, so the rules are not duplicated.
-
-Construction cannot bypass validation through the public API:
-
-- `ValidatedBookingBatch` is a `sealed class` with a **private** constructor.
-- `Bookings` has only a getter and contains an `ImmutableArray<BookingRequest>`.
-- Elements are immutable records. `with` creates a separate element and cannot
-  replace an element in the existing batch. The validated batch itself is not a record.
-- `BookingPipeline.Run` requires a `ValidatedBookingBatch`. The individual stages
-  `SelectBookable`, `CalculateQuotes`, and `Summarize` are now `internal`.
-  `InternalsVisibleTo("Astra.Tests")` preserves direct testing of the original stages.
-- The factory and `Pending` copy input collections. Replacing an element in the
-  original array after validation cannot change the prepared state.
-
-These examples intentionally do not compile and are **not included in source files**:
-
-```csharp
-new ValidatedBookingBatch(uncheckedRequests); // private constructor
-BookingPipeline.Run(uncheckedRequests, asOf, policy); // requires ValidatedBookingBatch
-new QuoteState.Ready(...); // internal constructor, unavailable to the application
-```
-
-## Tasks 3–4. Explicit states and pattern matching
-
-`Astra.Core/QuoteState.cs` defines a closed hierarchy: a private base constructor
-and three nested `sealed` cases. External code cannot add a fourth case.
-This is a discriminated-union-style model with a separate payload for each case.
-
-| State | Data | Meaning |
-|---|---|---|
-| `Pending` | Immutable snapshot of raw records, review date, pricing policy | Input is available, but its validity has not been established |
-| `Ready` | `ValidatedBookingBatch`, date, policy | The entire batch passed validation and may be calculated |
-| `Completed` | `QuoteSummary`: quotes and total | Calculation is complete; the result can be retrieved again |
-
-`Ready` and `Completed` can only be constructed inside the core.
-`QuoteWorkflow.Calculate` uses a switch expression in the actual application path:
-
-```csharp
-return state switch
-{
-    QuoteState.Pending => Result<QuoteState.Completed>.Failure(
-        "Missing prerequisite: prepare and validate the batch before calculating quotes."),
-    QuoteState.Ready ready => Result<QuoteState.Completed>.Success(new QuoteState.Completed(
-        BookingPipeline.Run(ready.Batch, ready.AsOf, ready.PricePolicy))),
-    QuoteState.Completed completed => Result<QuoteState.Completed>.Success(completed),
-    _ => Result<QuoteState.Completed>.Failure("Unknown quote state.")
-};
-```
-
-Every declared case is handled explicitly. The fallback rejects an unknown state.
-Each payload is accessed through its matching pattern, without casts or
-null-forgiving access that assumes the wrong case's data exists.
-
-## Task 5. Safe transitions and repeated operations
-
-```text
-Pending -- Prepare / all rules pass --> Ready -- Calculate --> Completed
-   |                                      |                       |
-   +-- Calculate --> Failure              +-- pure calculation     +-- Calculate --> same Completed
-   +-- Prepare / invalid input --> Failure
-```
-
-`Prepare` and `Calculate` leave the input object, collections, and global state
-unchanged. They return a new value, which the application adopts only after
-success. Validation does not reserve seats or write files. The module has no
-database or external store that would require rollback.
-
-Repeat rule: `Calculate(completed)` returns **the same `Completed` instance**
-without invoking the policy again. Calling `Calculate(ready)` again with the
-original immutable `Ready` repeats the pure calculation and produces equal values.
-A different policy or review date is supplied through a new `Pending`; it does
-not change an existing completed result.
-
-The core does not read files, clocks, console input, or random values. I/O belongs
-to `Astra.App`, in `Program.cs` and `TemporalDemo.cs`.
-The supplied `Func<BookingRequest, decimal>` pricing policy must be pure and
-return a nonnegative amount within the `decimal` range. The application policies,
-`Standard` and `GroupDiscount`, follow this contract. They are formulas used
-within calculation, not independent operations for accepting unchecked input.
-Programming errors in a custom delegate are not disguised as input validation errors.
-
-## Input and preserved ASTRA rules
-
-Input is a JSON array of objects with six required, non-null fields.
-Property names are case-sensitive; enum string values are case-insensitive.
-Unknown or duplicate properties, numeric enum values, invalid types, and invalid
-dates are rejected.
+Input is a JSON array of objects with six required, non-null fields. Property
+names are case-sensitive; enum string values are case-insensitive. Unknown or
+duplicate properties, numeric enum values, invalid types, and invalid dates are
+rejected.
 
 | Field | Rule |
 |---|---|
-| `Id` | 1–40 characters after Trim; no control characters; unique Id |
+| `Id` | 1–40 visible characters after Trim; no control/format/line-separator/paragraph-separator characters; unique after Trim, using case-sensitive Ordinal comparison |
 | `Destination` | `moon`, `mars`, `europa` |
-| `Passengers` | Integer from 1 to 6 |
+| `Passengers` | Integer from 1 to 6 inclusive |
 | `TravelClass` | `explorer`, `premium`, `first` |
-| `Departure` | ISO date `yyyy-MM-dd`, matching the mission schedule |
-| `IsCancelled` | Boolean; a missing field is distinct from `false` |
+| `Departure` | ISO date `yyyy-MM-dd`, matching the mission's schedule |
+| `IsCancelled` | Boolean; missing is distinct from `false` |
 
 | Mission | Base fare per passenger | Departure | Availability |
 |---|---:|---|---|
 | Moon | 49,000 USD | 2030-06-15 | Open |
 | Mars | 2,400,000 USD | 2030-09-10 | Limited; remaining seats are not tracked |
-| Europa | 8,700,000 USD | 2031-03-20 | Planned / preview; excluded from calculation |
+| Europa | 8,700,000 USD | 2031-03-20 | Planned / preview; excluded from quotes |
 
 Class multipliers: Explorer ×1, Premium ×1.35, First ×1.80.
-`Standard` is base fare × passengers × class multiplier.
-`GroupDiscount` applies an additional 10% discount for 4–6 passengers.
-All calculations use `decimal`. Each quote is rounded to two decimal places
-using `AwayFromZero`, and the total is the sum of the rounded quotes.
+`Standard` is base fare × passengers × class multiplier. `GroupDiscount` applies
+an additional 10% discount for 4–6 passengers. All calculations use `decimal`;
+each quote is rounded to cents using `AwayFromZero`, and the total adds the
+rounded quotes.
 
-After validation, the batch passes through the original three pure stages:
-`SelectBookable → CalculateQuotes → Summarize`.
-Cancelled requests, preview destinations, and departures before `asOf` are excluded.
-A departure exactly on `asOf` is included. A valid request that is filtered out
-is not an input error. Quotes are sorted by ascending price, then by Id using
-`Ordinal` comparison. `[]` succeeds with a total of 0.
+The original pure stages are `SelectBookable → CalculateQuotes → Summarize`.
+Cancelled bookings, preview destinations, and departures before `asOf` are
+excluded. A departure on `asOf` is included. A valid request filtered out by
+these rules is a successful selection decision. Quotes are sorted by ascending
+price, then by Id using Ordinal comparison. `[]` is a valid batch and succeeds
+with 0 quotes and a total of 0.
 
-For `samples/bookings.json` with `asOf = 2030-06-15`:
+For `samples/bookings.json` at `asOf = 2030-06-15`:
 
 | Id | Request | Standard, USD | Group, USD |
 |---|---|---:|---:|
@@ -226,145 +86,307 @@ For `samples/bookings.json` with `asOf = 2030-06-15`:
 | F | Mars, 3, Explorer | 7,200,000 | 7,200,000 |
 | **Total** | **4 quotes, ordered A, B, F, C** | **33,433,600** | **30,815,140** |
 
-At `asOf = 2030-06-16`, F and C remain, with totals of 33,120,000 and 30,528,000 USD.
-At `asOf = 2032-01-01`, both totals are 0.
+At `2030-06-16`, F and C remain, with totals 33,120,000 and 30,528,000 USD.
+At `2032-01-01`, both totals are 0.
 
-## Demonstrations
+## Task 1: explicit domain outcomes
 
-```sh
-# A6: success, missing validation, invalid batch, and safe repetition
-dotnet run --project Astra.App -- demo
+`Astra.Core/Result.cs` defines `Result<T>` with a private constructor.
+`Success(value)` requires a non-null payload. `Failure(error)` requires a useful,
+nonblank message and exposes no successful payload. `IsSuccess` identifies the
+case; reading `Value` from a failure throws a programming-error exception. The
+application uses `Match` to handle a final outcome without reading a failed value.
+A caller cannot construct contradictory success/error states through this API.
 
-# The complete Assignment 5 batch with both policies
-dotnet run --project Astra.App -- samples/bookings.json both 2030-06-15
+Expected domain rejections return `Failure`; they do not throw and catch
+exceptions as business control flow.
 
-# Record 2 has Passengers=0; record 1 must not produce a partial result
-dotnet run --project Astra.App -- samples/invalid.json standard 2030-06-15
+| Scenario | Expected success or useful domain failure |
+|---|---|
+| Valid supplied batch | 4 quotes; standard total 33,433,600 USD, group total 30,815,140 USD |
+| Invalid passenger count (`samples/invalid.json`) | `Record 2: Passengers must be between 1 and 6.`; no quote for the preceding valid record escapes |
+| Wrong departure (`samples/invalid-schedule.json`) | `Record 1: Departure must match the mission schedule.` |
+| Duplicate Id (`samples/duplicate-id.json`) | `Record 2: Id must be unique after trimming (case-sensitive).` |
+| Missing required field (`samples/missing.json`) | Record number plus the required field names; the batch is rejected |
+| Required booking lookup with unknown Id | `Booking with Id 'MISSING' was not found.` |
+| Calculate a `Pending` state directly (`demo`) | `Missing prerequisite: prepare and validate the batch before calculating quotes.` |
 
-# Other boundary and failure scenarios
-dotnet run --project Astra.App -- samples/empty.json both 2030-06-15
-dotnet run --project Astra.App -- samples/invalid-schedule.json standard 2030-06-15
-dotnet run --project Astra.App -- samples/missing.json standard 2030-06-15
-dotnet run --project Astra.App -- samples/malformed.json standard 2030-06-15
-dotnet run --project Astra.App -- samples/no-such-file.json standard 2030-06-15
+File-based commands add input-file context to parse/domain errors. The first
+invalid record rejects the whole batch; a partial successful total is never
+returned.
+
+## Task 2: explicit missing values
+
+The existing Task 2 implementation is preserved. `Astra.Core/Option.cs` defines
+`Option<T>.Some` with a required payload and `Option<T>.None` without one.
+`BookingLookup.Find` in `Astra.Core/BookLookup.cs` searches a validated batch by
+trimmed, case-sensitive Id and returns one of these cases. It does not fabricate
+a booking or treat `default(T)` as evidence that a booking exists.
+
+`BookingLookup.Require` explicitly matches both cases. `Some` becomes
+`Result<BookingRequest>.Success`; `None` becomes a meaningful failure naming the
+requested Id. `Input.FindBooking` composes parsing, batch validation, and this
+required lookup; the `find` CLI command uses the same path.
+
+Absence is separate from data. `Some<int>(0)` and `Some<bool>(false)` represent
+present primitive values. A real booking with `IsCancelled = false` is present,
+and the enum value `Destination.Moon` is valid even though its numeric value is
+0. In raw JSON input, nullable fields distinguish a missing passenger count
+from `Passengers = 0`: the latter is present but violates the 1–6 rule.
+A missing `IsCancelled` fails validation; `false` is valid. An empty validated
+batch is a valid value, while a lookup in it returns `None`.
+
+A validation `Result` answers whether input satisfies domain rules. A
+`QuoteState` answers which workflow stage has been reached. An `Option` answers
+whether a lookup found an item. These types describe different questions.
+
+## Task 3: Map, Bind, and failure propagation
+
+The normal quote workflow in `Astra.App/Input.cs` invokes both operations:
+
+```csharp
+return Parse(json)
+    .Bind(rows => QuoteWorkflow.Prepare(new QuoteState.Pending(rows, asOf, policy)))
+    .Bind(ready => QuoteWorkflow.Calculate(ready))
+    .Map(completed => completed.Summary);
 ```
 
-`demo` uses a separate Moon/1/Explorer example with a **49,000 USD** result.
-It also demonstrates `Missing prerequisite` when calculating `Pending`, factory
-rejection of zero passengers, and repetition without another policy invocation.
-`invalid` reports `Record 2: Passengers must be between 1 and 6`.
-`empty` succeeds with 0 quotes and a 0 total. `invalid-schedule` reports a departure
-that does not match the schedule; `missing` reports required fields;
-`malformed` reports `Invalid JSON`; a missing file reports `Cannot read input`.
-Normal application errors go to stderr, and no partial successful total is printed.
-Exit codes: **0** for success/help/a successful demo, **1** for input or file errors,
-and **2** for invalid CLI arguments or date format.
+`Map` takes `T → U`: it transforms a successful value with a pure function and
+wraps the result. Here it extracts the summary from `Completed`. `Bind` takes
+`T → Result<U>`: it continues with an operation that can reject the input,
+without producing a nested `Result<Result<U>>`. `Prepare` also uses Map to turn
+a validated batch into `Ready`.
 
-## xUnit tests and assignment coverage
+After failure, Map and Bind preserve the same error and invoke neither supplied
+function. Consequently, bad JSON skips preparation and calculation; an invalid
+batch skips pricing; a failed lookup produces no fabricated result. Tests use
+counters/flags to prove non-execution, rather than inferring it from output.
+`Result.Match` selects exactly one final success/failure handler.
 
-The automated tests run through **xUnit**. `[Fact]` declares a single scenario;
-`[Theory]` with `[InlineData]` runs a scenario with several inputs. `Assert` checks
-actual values against expected results. `dotnet test` reports failures and returns
-a nonzero exit code if a test fails. The demo's console output does not replace tests.
+`BookingFiles.LoadQuotes` composes file reading with `Input.Process`.
+`BookingFiles.FindBooking` composes reading with `Input.FindBooking`.
+`CommandLine.BuildReports` calculates every selected policy from one file
+snapshot and accumulates immutable reports before printing any success.
+`CommandLine.Run` uses a final Match to print the completed reports or one clear
+error. The CLI does not access a success payload after failure.
 
-The 19 Assignment 5 test methods are retained, producing 29 cases with theory inputs.
-`Astra.Tests/TemporalCouplingTests.cs` adds 17 methods producing 20 cases.
-Latest run, **18 October 2026**: **49 passed, 0 failed, 0 skipped**, using
-.NET SDK **10.0.112** on Linux x64.
+## Tasks 4–5: exception boundaries and application integration
 
-| Requirement | File / method | Expected assertion or evidence |
+File I/O belongs to `Astra.App/BookingFiles.cs`, not the pure core.
+`BookingFiles.Read` catches the relevant file/path exceptions (`IOException`,
+`UnauthorizedAccessException`, `ArgumentException`, `NotSupportedException`) and
+returns a failure naming the attempted file. A missing file is detected as an
+I/O failure. `Input.Parse` catches `JsonException` and returns `Invalid JSON`
+with parser context; the file wrapper adds the input path.
+
+An invalid passenger count, duplicate Id, schedule mismatch, and missing booking
+are expected domain failures. A missing/unreadable file or malformed JSON is an
+operational/input-boundary problem. Both are explicit failures with useful
+context, while their causes and implementation locations remain distinct.
+There is no silent fallback, empty catch, or failure reported as success.
+
+Parsing and validation use local values. The factory's local builder escapes
+only when every row succeeds. `Pending` and the validated batch own immutable
+snapshots; transitions return new state and do not mutate input or a previously
+completed result. This program writes no booking files or persistent state, so a
+failed read, parse, or validation cannot leave a partial update. Tests also
+compare original file contents and an earlier completed summary after failures.
+
+Unexpected programming errors in a custom pricing delegate are not converted
+into an ordinary domain success or silently hidden. Policies supplied to the
+core must be pure and return a nonnegative price within `decimal` range.
+
+## Demonstrations and expected outcomes
+
+```sh
+# Normal quotes: 4 quotes and totals 33433600.00 / 30815140.00 USD
+dotnet run --project Astra.App -- samples/bookings.json both 2030-06-15
+
+# Three distinct domain failures
+dotnet run --project Astra.App -- samples/invalid.json standard 2030-06-15
+dotnet run --project Astra.App -- samples/invalid-schedule.json standard 2030-06-15
+dotnet run --project Astra.App -- samples/duplicate-id.json standard 2030-06-15
+
+# Present lookup: A, Moon, 1 passenger, Cancelled: False
+dotnet run --project Astra.App -- find samples/bookings.json A
+
+# Absent required lookup: a clear failure naming MISSING
+dotnet run --project Astra.App -- find samples/bookings.json MISSING
+
+# File failures: Cannot read input / Invalid JSON, with the file path
+dotnet run --project Astra.App -- samples/no-such-file.json standard 2030-06-15
+dotnet run --project Astra.App -- samples/malformed.json standard 2030-06-15
+
+# Valid empty data, missing fields, and earlier safe state transitions
+dotnet run --project Astra.App -- samples/empty.json both 2030-06-15
+dotnet run --project Astra.App -- samples/missing.json standard 2030-06-15
+dotnet run --project Astra.App -- demo
+```
+
+`no-such-file.json` is intentionally absent. `empty.json` succeeds with 0 quotes
+and 0 USD. `missing.json` fails required-field validation. The `demo` retains
+A6's separate Moon/1/Explorer example (49,000 USD), rejected `Pending`
+calculation, zero-passenger rejection, and safe repeated calculation.
+Normal failures go to stderr, with no partial total. Exit codes: **0** for
+success/help/successful demo, **1** for input/domain/file failures, and **2** for
+invalid CLI arguments or date format.
+
+## Preserved Assignment 5–6 design
+
+Previously, `BookingPipeline.Run` accepted an arbitrary array: an external caller
+could skip validation and quote zero passengers. It now requires a
+`ValidatedBookingBatch`, whose sealed class has a private constructor, a
+getter-only immutable collection, and immutable elements. Only `Create` can
+produce it after checking every rule. The individual pipeline stages are
+internal; `InternalsVisibleTo("Astra.Tests")` keeps their direct tests.
+`Input.Validate` is a thin factory adapter, so validation rules are not duplicated.
+
+`QuoteState` is a closed hierarchy (private base constructor, three sealed cases):
+
+| State | Data | Allowed behavior |
 |---|---|---|
-| Task 1: hidden prerequisite | This README, before-and-after section | An unchecked batch previously produced a zero-price quote; the API now rejects that input type |
-| Task 2: factory | `ValidatedBookingBatch.Create` | Valid data creates a usable batch; every rule rejects invalid input with a reason |
-| Task 3: distinct cases | `QuoteState.Pending`, `Ready`, `Completed` | All three cases are reachable and carry their own payload |
-| Task 4: matching | `QuoteWorkflow.Calculate`, called by `Input.Process` | Pending → rejection, Ready → calculation, Completed → existing result |
-| Task 5: safe operations | `Prepare`, `Calculate`, `Input.Process` | Calculation requires validation; repetition is safe; failures preserve state |
-| FACTORY SUCCESS | Factory tests | Expected Id, mission, passenger count, and normalization |
-| FACTORY REJECTION | Factory tests plus `RequiredFields`, `InvalidFields`, `PassengerBoundaries` | Reasons cover every rule; no partially valid batch escapes |
-| DISTINCT CASES / NORMAL | Transition tests plus `NormalWorkflow`, `TwoPolicies` | Every branch and the exact prices and totals |
-| MISSING PREREQUISITE | Pending calculation test | Rejection and zero policy invocations |
-| REPEATED OPERATION | Completed repetition test | The same object and an unchanged invocation count |
-| BOUNDARY VALUE | Passenger, Id, date, and discount boundaries | 1 and 6 are accepted; 0 and 7 are rejected; the exact departure date is included |
-| STATE PRESERVATION | Snapshot and invalid-batch tests, `Purity` | Raw input, Pending, and the previous result remain unchanged |
-| Preserved functionality | `BookingTests.cs` | 29 A5 cases covering input, prices, stages, purity, and Map/Bind |
+| `Pending` | Snapshot of raw records, review date, policy | Prepare/validate; direct calculation fails |
+| `Ready` | Validated batch, review date, policy | Calculate a completed summary |
+| `Completed` | Finished summary | Retrieve the same completed result without recalculation |
 
-New tests and their specific expectations:
+`Ready` and `Completed` have internal constructors. `QuoteWorkflow.Calculate`
+uses pattern matching over all three cases. An arbitrary raw array cannot be
+passed to `Run` or used to construct `Ready` from the application.
 
-| Method in `TemporalCouplingTests` | Expected result |
+```text
+Pending -- Prepare / all rules pass --> Ready -- Calculate --> Completed
+   |                                      |                       |
+   +-- Calculate --> Failure              +-- pure calculation     +-- Calculate --> same Completed
+   +-- Prepare / invalid input --> Failure
+```
+
+`Calculate(completed)` returns the **same instance**, without invoking the policy
+again. Calculating the original immutable `Ready` again repeats a pure
+calculation and produces equal values. A different policy/date needs a new
+`Pending`; source-array edits cannot change an existing state's snapshot.
+The core does not read files, console input, clocks, or random values.
+
+## Automated tests and requirement mapping
+
+The xUnit suite uses assertions, not console output, to compare actual and
+expected results. `[Fact]` is one scenario; `[Theory]` produces a case for each
+input. `dotnet test` returns a nonzero exit code on assertion failure.
+Earlier `BookingTests.cs` and `TemporalCouplingTests.cs` are retained and expanded
+by `ExceptionHandlingTests.cs`; cumulative coverage exceeds 10 tests.
+
+**Latest run, 25 October 2026:** **73 passed, 0 failed, 0 skipped**, using SDK
+**10.0.112**. Build: **0 warnings, 0 errors**. The suite includes 49 original
+A5/A6 cases, 7 additional validation cases retained from GitHub, and 17 new
+Assignment 7 tests. Clean-archive build, tests, and CLI checks are recorded in
+`VERIFICATION.txt`.
+
+| Requirement / test scenario | Implementation and automated evidence | Expected result |
+|---|---|---|
+| Task 1: protected Result cases | `Result<T>`; Result invariant tests | null success / blank error rejected; failed Value inaccessible |
+| Complete successful chain | `BookingFiles.LoadQuotes`, `Input.Process`; success tests | 4 quotes; exact standard/group totals; A, B, F, C order |
+| At least three domain failures | `ValidatedBookingBatch.Create`; failure tests | Passengers, departure, and duplicate Id each return a useful rule-specific error |
+| Task 2: present/absent lookup | `Option<T>`, `BookingLookup.Find/Require`, `Input.FindBooking`; lookup tests | Existing booking is Some; missing is None, then a named Result failure |
+| Legitimate primitive values | Option tests; `FalseIsValid`, required-field tests | Some(0), Some(false), enum zero and IsCancelled=false are not absence; missing fields fail |
+| Map success | `Result.Map`, `Input.Process`, `QuoteWorkflow.Prepare`; composition tests | Callback receives successful value and produces the expected transformed value |
+| Bind success | `Result.Bind`, parsing/validation/lookup chains; composition tests | Next operation receives the value and preserves its own Result |
+| Failure propagation | Map/Bind and invalid-input tests | Exact error retained; supplied functions/pricing policy called 0 times |
+| Task 4: missing file | `BookingFiles.Read`; temporary-path tests | Failure includes path and useful cause; state/file data remain unchanged |
+| Task 4: malformed file | `Input.Parse`, file wrapper; controlled malformed-file tests | Invalid JSON is detected with file context; no partial result/update |
+| Task 5: one final handler | `CommandLine.Run`, `Result.Match`; CLI tests | Success prints a result, failure prints an error without a total, correct exit codes |
+| Safe A6 transitions | `QuoteState`, `QuoteWorkflow`; `TemporalCouplingTests` | Pending rejected, Ready calculates, repeated Completed keeps same reference and callback count |
+| Immutability / state consistency | Factory and snapshot tests; file-boundary failure tests | Inputs, source file contents, and earlier successful results do not change |
+| Preserved A5 pipeline | `BookingTests.cs` | Domain rules, filtering, rounding, deterministic sorting, both policies, and purity remain correct |
+
+The 17 new test methods in `ExceptionHandlingTests.cs` cover:
+
+| Test method | Expected assertion |
 |---|---|
-| `FactoryCreatesCompleteNormalizedValue` | Id is trimmed and all valid request data is retained |
-| `MissingDatasetFailsAndEmptyDatasetProducesUsableBatch` | null is rejected; [] creates a usable batch with a 0 total |
-| `FactoryRejectsNullRowAndEveryMissingFieldWithoutExposingValue` | A null record and each missing field produce a reason; Value remains inaccessible |
-| `FactoryRejectsBlankAndControlCharacterIds` | All 4 blank/control-character Id cases are rejected |
-| `FactoryEnforcesExactIdLengthAndPassengerLimits` | 40 characters and 1/6 passengers are accepted; 41 characters and 0/7 passengers are rejected |
-| `FactoryChecksTrimmedIdsWithOrdinalCaseSensitiveUniqueness` | A and " A " are duplicates; A and a are distinct Ids |
-| `FactoryRejectsEachUndefinedEnumBeforeConsultingSchedule` | Undefined Destination and TravelClass values produce a clear error |
-| `FactoryRequiresTheChosenMissionsExactDeparture` | Each mission's exact date is accepted; the following day is rejected |
-| `ValidatedCapabilityHasNoPublicConstructionOrMutationPath` | No public constructor or setter exists; Run requires the validated type |
-| `StateCasesAreClosedAndPreparedStatesCannotBeConstructedPublicly` | Exactly 3 sealed cases exist; Ready/Completed cannot be constructed externally |
-| `PendingAndValidatedBatchOwnSnapshotsOfMutableSource` | Editing the source list or a separate copy does not change the snapshots |
-| `PrepareRetainsConfigurationWithoutInvokingPolicy` | Date and delegate are retained; preparation invokes the policy 0 times |
-| `CalculatingPendingRejectsMissingPrerequisiteWithoutPolicyCalls` | Explicit rejection, 0 invocations, and unchanged original state |
-| `ReadyCalculatesAnImmutableCompletedSummaryUsingItsStoredPolicy` | Prices are 12.35 and 24.69, total is 37.04, and the original batch is unchanged |
-| `RepeatingCompletedReturnsSameInstanceAndNeverCallsPolicyAgain` | Two repetitions return the same result; the policy is invoked only once in total |
-| `RepeatingReadyRecomputesDeterministicallyForAPurePolicy` | Two new results contain equal quotes and totals |
-| `FailureAfterValidRowLeavesInputsAndPreviouslyCompletedResultUnchanged` | Record 2 fails; raw input, Pending, and the earlier Completed remain unchanged |
+| `FileWorkflowComposesReadParseValidateCalculateAndProducesCorrectQuotes` | Controlled A/B file produces 49,000 + 264,600 = 313,600 USD, sorted A/B; file unchanged |
+| `InvalidQuantityReportsTheRecordAndSkipsPricing` | Passenger-rule error names Record 1; pricing invoked 0 times |
+| `DuplicateNormalizedIdReportsTheSecondRecordAndSkipsPricing` | Trimmed duplicate reports Record 2; pricing invoked 0 times |
+| `WrongMissionDepartureReportsTheRuleAndSkipsPricing` | Schedule-rule error; pricing invoked 0 times |
+| `UnpreparedWorkflowRejectsCalculationWithoutInvokingPolicy` | Pending fails; input unchanged; pricing invoked 0 times |
+| `RealLookupHandlesPresentAndAbsentCasesAndRetainsMoonAndFalse` | Some retains Moon/false; unknown, null, and blank Ids produce None; Require converts absence to Failure |
+| `PrimitiveSomeValuesRemainPresentForZeroFalseAndEmptyString` | 0, false, and empty string remain Some payloads |
+| `MapPassesTheSuccessfulPayloadAndTransformsItsType` | Callback receives 4 and returns the expected string |
+| `BindPassesThePayloadAndPreservesTheNextResult` | Callback receives 4; its success/failure Result is preserved |
+| `FailurePropagatesUnchangedAndSkipsBothDependentCallbacks` | Same error; Map and Bind callback counts both 0 |
+| `ResultRejectsContradictorySuccessAndUninformativeFailure` | null payload and blank error rejected; successful 0/false retained |
+| `MatchCallsOnlyTheActiveCaseHandler` | Only the matching success/failure handler runs |
+| `MissingFileReportsItsPathSkipsPolicyAndPreservesCompletedState` | Path in error, no created file, 0 pricing calls, previous completed result unchanged |
+| `TruncatedSecondRecordReportsItsPathWithoutPricingOrPartialStateUpdate` | Invalid JSON with path, 0 pricing calls, original contents and previous completed result unchanged |
+| `FileLookupFindsAnActualBookingAndTurnsAbsenceIntoFailure` | Existing A succeeds; unknown Id fails with useful context |
+| `CommandLineFindReportsPresentAndMissingBookingsWithAppropriateExitCodes` | Found booking prints with exit 0; absence prints only an error with exit 1 |
+| `CommandLineMalformedFileEmitsOnlyAnErrorAndNeverPartialQuotes` | Exit 1, empty successful output, error includes Invalid JSON and path |
 
-List all test cases with:
+File tests create controlled temporary directories/files and clean them up.
+They do not depend on a data file that happens to exist on the developer's
+computer. Project sample JSON is copied into the test output by the test project.
+List the exact runnable test cases with:
 
 ```sh
 dotnet test Astra.slnx --list-tests
 ```
 
-Actual build, test, and clean archive extraction results are recorded in
-`VERIFICATION.txt` (18 October 2026, Linux x64, SDK 10.0.112).
-
-## Team and agreed responsibilities
+## Team, contribution areas, and AI assistance
 
 Group: **IT-2512**. Members: **Beknur Abdykhamit** and **Zhumazhan Miras**.
-The owner of this submission copy is Zhumazhan Miras.
+The submission owner is Zhumazhan Miras. Beknur's existing **Task 2 (Maybe/Option) of Assignment 7** implementation is
+preserved, as confirmed by the submission owner.
 
-| Member | Agreed Assignment 6 responsibility | Tests and documentation |
+| Member | Contribution area to review and defend for Assignment 7 | Tests and documentation to review |
 |---|---|---|
-| Beknur Abdykhamit | `ValidatedBookingBatch.Create`, protected construction, `Input.Validate` adapter | Factory success and all rejection reasons, boundaries, and prevention of partial batches; domain rules and Task 2 |
-| Zhumazhan Miras | `QuoteState`, `QuoteWorkflow`, `Input.Process`, demo/CLI | Cases and matching, missing prerequisites, repetition, and state preservation; Tasks 1 and 3–5, run instructions |
+| Beknur Abdykhamit | Existing Task 2: `Option<T>`, `BookingLookup.Find/Require`, `Input.FindBooking`, present/absent CLI lookup | Present/absent and primitive-value assertions; explanation of None versus valid false/zero and conversion to Result |
+| Zhumazhan Miras | Remaining integration: protected Result handling, Map/Bind quote workflow, file/parse boundaries, CLI outcomes, preserved safe states | Domain failures, skipped-callback assertions, controlled file tests, state preservation, run instructions and submission verification |
 
-This table records agreed responsibilities, not evidence of completed individual
-contributions. The code was prepared with assistance from an AI assistant.
-Before submission, each member must record the actual code changes, tests, and
-documentation they personally reviewed, verified, and improved.
+The new integration, tests, and documentation were prepared with AI assistance.
+The table identifies the implementation, tests, and documentation each member
+reviews and defends; it does not claim independent authorship of the AI-assisted
+additions. Each student must explain and modify their contribution during the
+individual defense.
 
-## Preparing for the defense
+## Defense checklist
 
-1. Compare the old and new `Run` calls. Explain why providing a `Validate` method
-   alone does not prevent a caller from skipping it.
-2. Show the factory's private constructor, rules, local builder, and immutable
-   result. Explain why an invalid second record prevents the entire batch from escaping.
-3. Open `QuoteState` and `QuoteWorkflow.Calculate`. Identify each state's payload
-   and matching branch, and explain the private base constructor.
-4. Run `demo`, the normal JSON input, and `invalid.json`, then run `dotnet test Astra.slnx`.
-5. Explain why Completed is returned without recalculation, while the original
-   Ready can be calculated again using a pure function. A policy change requires new state.
-6. Live modification exercise: change `MaximumPassengers` from 6 to 5.
-   Run the boundary tests and observe the failure of the old expectation for 6.
-   Then update the rule's expected behavior and test: 5 is accepted, while 6 is
-   rejected with a reason. Sample C also contains 6 passengers, so its data and
-   expected totals must be updated if the new limit is retained.
-   Keep the original limit of 6 in the baseline submission.
+1. Run the normal batch, one of the three domain failures, the missing lookup,
+   and a missing/malformed file. Identify the final Result case and exit code.
+2. Trace `Read → Parse → Prepare → Calculate → Map(summary)` and the required
+   lookup chain. Explain why Map returns a transformed value inside Result,
+   while Bind accepts a function already returning Result.
+3. Open the failure-propagation assertions. Show the exact error and a callback
+   counter/flag proving that the dependent function was never invoked.
+4. Match `Some`/`None` and explain why false/zero can be present values. Distinguish
+   a missing passenger count from a present but invalid zero.
+5. Identify `BookingFiles.Read` and `Input.Parse` as exception boundaries. Show
+   immutable snapshots, the factory's local builder, and tests retaining an
+   earlier completed summary/file content after failure.
+6. Explain A6's three state cases and why repeating Completed does not run the
+   pricing policy again. Run `demo` and the relevant tests.
+7. Practice a small live change: add a regression test for a missing lookup Id,
+   or modify a domain boundary and adjust the corresponding test. For example,
+   lowering `MaximumPassengers` from 6 to 5 must accept 5 and reject 6; sample C
+   and exact success totals would also need revision if the change is retained.
+   Keep the submitted baseline at 6.
 
-`Result<T>` from A5 is retained: `Map` transforms success, and `Bind` chains an
-operation that returns a `Result`. Neither invokes its delegate after failure.
-This type and the workflow states can be extended in Assignment 7 within the same project.
+Кратко для защиты: **Map** меняет успешное значение, **Bind** запускает следующий
+шаг, который тоже может вернуть ошибку. При Failure оба пропускают функцию.
+**None** означает «запись не найдена»; **Some(false)** и **Some(0)** содержат
+значение. Ошибки правил возвращает домен, исключения чтения и JSON обрабатываются
+на границе приложения. Новое состояние принимается только после успеха.
 
 ## Submission
 
-Public repository: [mmionya/assignment-6-ifp](https://github.com/mmionya/assignment-6-ifp).
+Archive: **`IT-2512_Zhumazhan_Miras_Assignment7.zip`**.
+It includes all C# source and project files, `Astra.slnx`, `global.json`,
+`Directory.Build.props`, tests, sample JSON, this README, and verification results.
+It excludes generated `bin/` and `obj/`, IDE caches, `.git/`, credentials, and the
+installed SDK. Extract it and run the build/run/test commands from its root.
 
-Submission file: `IT-2512_Zhumazhan_Miras_Assignment6.zip`.
-The archive includes `.cs` sources, `.csproj` projects, the `Astra.slnx` solution,
-`global.json`, `Directory.Build.props`, README, verification results, tests, and samples.
-It excludes `bin/`, `obj/`, IDE caches, `.git/`, secrets, and the installed SDK.
-To reproduce the result, extract the archive and run the commands at the start
-of this README. The owner uploads the archive to Moodle. The Git repository
-supports collaboration and later project stages; its link does not replace the
-required ZIP submission.
+Upload the **actual ZIP archive directly to the LMS/Moodle**. A GitHub/cloud
+link or a document containing only a download link is not an accepted submission.
+Each student uploads the project files and completes an individual defense.
+The implementation is worth 8 points and the individual defense 7 points;
+without an oral defense the score is 0 unless an alternative is officially approved.
+
+Repository for continued work:
+[mmionya/assignment-6-ifp](https://github.com/mmionya/assignment-6-ifp).
+Keep the runnable project and tests for Assignment 8 and the final project.

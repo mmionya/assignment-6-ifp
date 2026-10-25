@@ -1,44 +1,69 @@
-ASTRA / Assignment 6 - English edition verification
-Date: 2026-10-18 (Asia/Almaty)
-Environment: Linux x64, .NET SDK 10.0.112; target net10.0.
-Working directory: a new temporary directory extracted from the updated submission ZIP.
-Before build: no bin/obj folders.
+ASTRA / Assignment 7 verification
+Date: 2026-10-25 (Asia/Almaty)
+Environment: Linux x64, .NET SDK 10.0.112, target net10.0.
+Working directory: clean temporary extraction of the submission ZIP.
+Before build: no generated bin/obj directories.
 
-COMMENT UPDATE (2026-10-18)
-Reworded comments in eight C# files using simpler English.
-All non-comment lines were compared with commit e013db8 and are unchanged.
-Tests were not rerun for this comment-only update; the last xUnit results are recorded below.
-The submission ZIP was rebuilt and checked against the current tracked files.
+BUILD AND AUTOMATED TESTS
+Build succeeded: 0 warnings, 0 errors.
+xUnit: 73 passed, 0 failed, 0 skipped.
+Counters confirmed from the test runner's TRX result file.
+49 original A5/A6 cases + 7 retained validation cases + 17 new A7 tests.
+Framework: xunit 2.9.3, xunit.runner.visualstudio 3.1.1,
+Microsoft.NET.Test.Sdk 17.13.0.
 
-MOST RECENT BUILD AND TEST RESULTS (before the comment update)
-All tracked project text is English: README, code/comments, test names, application messages,
-sample input and verification notes. No Cyrillic text remains in tracked files.
-Build: succeeded, 0 warnings, 0 errors.
-xUnit: 49 passed, 0 failed, 0 skipped (29 retained A5 cases + 20 A6 cases).
-The TRX result counters were checked, and the console log identifies the xUnit.net adapter.
-Test framework: xunit 2.9.3, xunit.runner.visualstudio 3.1.1,
-Microsoft.NET.Test.Sdk 17.13.0; IsTestProject=true.
-Tests use 33 Fact methods and 3 Theory methods with 16 InlineData rows.
-Normal command: 4 quotes; standard 33433600.00 USD; group 30815140.00 USD.
-Demo: missing prerequisite and invalid second row rejected; success 49000.00 USD;
-      repeated Completed is the same object, total policy calls remain 1.
-
-COMMANDS (from the extracted project root)
+COMMANDS VERIFIED FROM THE EXTRACTED ROOT
 dotnet build Astra.slnx
-dotnet test Astra.slnx --logger "console;verbosity=normal" --logger "trx;LogFileName=xunit-results.trx" --results-directory <temporary-results-directory>
+dotnet test Astra.slnx --no-build
 dotnet run --project Astra.App -- samples/bookings.json both 2030-06-15
-dotnet run --project Astra.App -- demo
+All 25 additional CLI scenarios below use the resulting Astra.App assembly.
 
-PREVIOUS FUNCTIONAL BASELINE (2026-10-18, same executable application and test code)
-All 16 application scenarios passed with expected stdout/stderr and exit codes:
-normal both-policy calculation; temporal-coupling demo; standard; group; empty input;
-day after Moon departure; date after all departures; invalid passengers; invalid schedule;
-missing fields; malformed JSON; missing input file; no arguments; unknown policy;
-invalid CLI date; help.
-A temporary MaximumPassengers change from 6 to 5 caused the boundary test to fail as expected.
-The source was restored; the delivered limit is 6. The English update changes documentation only.
+CLI CHECKS: 25 PASSED
+- standard: exit 0
+- group: exit 0
+- both: exit 0
+- next-day: exit 0
+- after-all: exit 0
+- empty: exit 0
+- find-present: exit 0
+- find-trimmed: exit 0
+- find-cancelled: exit 0
+- find-missing: exit 1
+- find-case-sensitive: exit 1
+- invalid-passengers: exit 1
+- invalid-schedule: exit 1
+- duplicate-id: exit 1
+- missing-fields: exit 1
+- malformed: exit 1
+- missing-file: exit 1
+- missing-directory: exit 1
+- find-malformed: exit 1
+- find-missing-file: exit 1
+- no-arguments: exit 2
+- invalid-policy: exit 2
+- invalid-date: exit 2
+- help: exit 0
+- demo: exit 0
+
+Verified exact standard/group totals 33433600.00 / 30815140.00 USD,
+4 sorted quotes, empty/filtered success, present/absent/trimmed/case-sensitive
+lookups, false and true cancellation flags, three distinct domain failures,
+missing fields/files/directories, malformed content, bad CLI arguments,
+and preserved A6 temporal-coupling demo.
+All normal failures print only stderr with a useful message and nonzero exit.
+No success total or partial result is printed on failure.
+
+NEW AUTOMATED COVERAGE
+Integrated file success; quantity/duplicate/schedule/state failures; Some/None
+with legitimate zero/false/empty payloads; Map/Bind success; exact failure
+propagation with 0 dependent callback invocations; protected Result states;
+Match handler selection; controlled missing and truncated temporary files;
+unchanged source files and previous immutable Completed result; CLI outcomes.
+Temporary file test resources are cleaned up.
 
 PACKAGING
-The ZIP includes tracked source, project/solution/configuration files, README, this report and samples.
-It excludes bin, obj, IDE caches, Git metadata, SDK files and local output artifacts.
-The final archive matches the current tracked files, including the revised comments and this report.
+The final ZIP contains 32 source/project/config/document/sample files.
+It excludes bin, obj, IDE caches, Git metadata, TestResults, installed SDK,
+credentials, and nested archives. All executable source/project/config/sample
+bytes in the final ZIP match the clean snapshot tested above.
+README and this report describe the verified Assignment 7 outcome.
