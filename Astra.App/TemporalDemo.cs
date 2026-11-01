@@ -9,8 +9,6 @@ internal static class TemporalDemo
         var asOf = new DateOnly(2030, 6, 15);
         var moon = new RawBooking("MOON-DEMO", Destination.Moon, 1,
             TravelClass.Explorer, asOf, false);
-
-        // Count calls here so the demo can show whether a calculation ran again.
         var policyCalls = 0;
         decimal CountedStandard(BookingRequest booking)
         {
@@ -97,8 +95,6 @@ internal static class TemporalDemo
             Console.WriteLine($"Rejected: {result.Error}");
             return false;
         }
-
-        // Replace the current state only when the operation succeeds.
         current = result.Value;
         Console.WriteLine($"Accepted: current state is {StateName(current)}");
         return true;

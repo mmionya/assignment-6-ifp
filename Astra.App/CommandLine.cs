@@ -16,12 +16,13 @@ public static class CommandLine
             PrintUsage(output);
             output.WriteLine("The review date and pricing policy are explicit inputs.");
             output.WriteLine("find validates the whole file and distinguishes a missing booking from Cancelled=False.");
+            output.WriteLine("report runs the quote list and the demand-by-destination report with a configured price policy; an export path writes both as CSV.");
             output.WriteLine("demo shows safe states, rejected transitions, and repeated calculation.");
             output.WriteLine("Quotes are calculated in memory; no booking is submitted or saved.");
             output.WriteLine("Exit codes: 0 = success/help; 1 = file, parsing, or domain failure; 2 = invalid arguments.");
             return 0;
         }
-
+        if (args is ["report", .. var reportArgs]) return ReportCommand.Run(reportArgs, output, error);
         if (args is ["find", var findPath, var bookingId])
         {
             return BookingFiles.FindBooking(findPath, bookingId).Match(
@@ -43,7 +44,6 @@ public static class CommandLine
         }
 
         var policies = args[1] == "both" ? new[] { "standard", "group" } : [args[1]];
-        // Read one snapshot and finish every calculation before printing success.
         return BookingFiles.Load(args[0], json => BuildReports(json, asOf, policies)).Match(
             reports => PrintReports(output, reports, asOf),
             message => Fail(error, message));
@@ -89,6 +89,7 @@ public static class CommandLine
     {
         writer.WriteLine("Usage: dotnet run --project Astra.App -- <input.json> <standard|group|both> <as-of:yyyy-MM-dd>");
         writer.WriteLine("       dotnet run --project Astra.App -- find <input.json> <booking-id>");
+        writer.WriteLine("       dotnet run --project Astra.App -- report <input.json> <as-of:yyyy-MM-dd> <standard|group10|family5> [export.csv]");
         writer.WriteLine("       dotnet run --project Astra.App -- demo");
         writer.WriteLine("       dotnet run --project Astra.App -- --help");
     }

@@ -1,8 +1,6 @@
 using System.Collections.Immutable;
 
 namespace Astra.Core;
-
-// These are the only three states a quote can be in.
 public abstract class QuoteState
 {
     private QuoteState() { }

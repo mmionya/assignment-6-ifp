@@ -1,8 +1,6 @@
 using Astra.Core;
 
 namespace Astra.App;
-
-// File access belongs at the application boundary, outside the pure core.
 public static class BookingFiles
 {
     public static Result<string> Read(string path)
@@ -25,12 +23,8 @@ public static class BookingFiles
             return Result<string>.Failure($"Cannot read input '{path}': {ex.Message}");
         }
     }
-
-    // Add file context to parsing/domain failures without changing their meaning.
     public static Result<T> Load<T>(string path, Func<string, Result<T>> process) =>
-        Read(path).Bind(json => process(json).Match(
-            Result<T>.Success,
-            error => Result<T>.Failure($"Input '{path}': {error}")));
+        Read(path).Bind(json => process(json).WithContext($"Input '{path}'"));
 
     public static Result<QuoteSummary> LoadQuotes(string path, DateOnly asOf,
         Func<BookingRequest, decimal> policy) =>

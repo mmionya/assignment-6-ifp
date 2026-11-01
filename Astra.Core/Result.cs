@@ -1,13 +1,10 @@
 namespace Astra.Core;
-
-// Map changes a successful value. Bind runs the next step, which can also fail.
 public sealed class Result<T>
 {
     private readonly T? value;
     public string? Error { get; }
     public bool IsSuccess => Error is null;
-    public T Value => IsSuccess && value is T present
-        ? present : throw new InvalidOperationException(Error ?? "No value.");
+    public T Value => IsSuccess && value is T present ? present : throw new InvalidOperationException(Error ?? "No value.");
 
     private Result(T? value, string? error) => (this.value, Error) = (value, error);
 
@@ -33,12 +30,8 @@ public sealed class Result<T>
     public Result<U> Bind<U>(Func<T, Result<U>> next)
     {
         ArgumentNullException.ThrowIfNull(next);
-        return Error is { } error
-            ? Result<U>.Failure(error)
-            : next(Value) ?? throw new InvalidOperationException("Bind must return a Result.");
+        return Error is { } error ? Result<U>.Failure(error) : next(Value) ?? throw new InvalidOperationException("Bind must return a Result.");
     }
-
-    // Handle the outcome once, without reading a failed result's Value.
     public U Match<U>(Func<T, U> onSuccess, Func<string, U> onFailure)
     {
         ArgumentNullException.ThrowIfNull(onSuccess);
