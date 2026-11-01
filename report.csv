@@ -1,0 +1,14 @@
+Report,Quote list
+Id,Destination,Passengers,TravelClass,TotalUsd
+A,Moon,1,Explorer,49000.00
+B,Moon,4,Premium,238140.00
+F,Mars,3,Explorer,7200000.00
+C,Mars,6,First,23328000.00
+Total,,,,30815140.00
+
+Report,Demand by destination
+Destination,Bookings,Passengers,RevenueUsd
+Mars,2,9,30528000.00
+Europa,1,1,8700000.00
+Moon,2,5,287140.00
+Total,,,39515140.00

@@ -12,7 +12,7 @@ public static class ReportCommand
         ["family5"] = Pricing.Family5
     };
 
-    public static int Run(string[] args, TextWriter output, TextWriter error)
+    public static int Run(string[] args, TextWriter output, TextWriter error, IGroupEligibility? native = null)
     {
         if (args.Length is not (3 or 4) || !DateOnly.TryParseExact(args[1], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var asOf) || !Policies.TryGetValue(args[2], out var price))
         {
@@ -26,8 +26,11 @@ public static class ReportCommand
         return BookingFiles.Load(inputPath, json => Input.Parse(json)
                 .Bind(Input.Validate)
                 .Map(batch => BookingReports.Build(batch, asOf, price)))
-                .Bind(reports => Export(reports, inputPath, exportPath))
-                .Match( reports => Print(output, reports, args[2], asOf, exportPath), message =>
+                .Bind(reports => NativeReportCalculation.CountEligible(reports.Quotes, native ?? new NativeGroupEligibility())
+                    .Map(summary => (Reports: reports, Native: summary)))
+                .Bind(result => Export(result.Reports, inputPath, exportPath)
+                    .Map(_ => result))
+                .Match(result => Print(output, result.Reports, result.Native, args[2], asOf, exportPath), message =>
                 {
                     error.WriteLine(message);
                     return 1;
@@ -43,7 +46,7 @@ public static class ReportCommand
         return ReportFiles.Export(exportPath, ReportFormat.ToCsvLines(reports)).Map(_ => reports);
     }
 
-    private static int Print(TextWriter output, ReportSet reports, string policy, DateOnly asOf, string? exportPath)
+    private static int Print(TextWriter output, ReportSet reports, NativeGroupSummary native, string policy, DateOnly asOf, string? exportPath)
     {
         output.WriteLine($"Policy: {policy}; As of: {asOf.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
         output.WriteLine("Report 1: Quote list");
@@ -56,6 +59,7 @@ public static class ReportCommand
             output.WriteLine($"{line.Destination}: {line.Bookings} booking(s), {line.Passengers} passenger(s) " + $"=> {ReportFormat.Money(line.RevenueUsd)} USD");
         output.WriteLine($"Total: {ReportFormat.Money(reports.Demand.TotalUsd)} USD");
 
+        output.WriteLine($"Native C: {native.EligibleBookings} accepted booking(s) have at least {native.MinimumPassengers} passengers.");
         if (exportPath is not null) output.WriteLine($"Exported: {exportPath}");
         return 0;
     }
