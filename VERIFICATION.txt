@@ -4,12 +4,20 @@ Platform: Windows x64
 SDK: .NET 10.0.403
 
 Executed:
-  dotnet test Astra.slnx --no-restore --nologo --verbosity minimal
-Result: 179 passed, 0 failed, 0 skipped.
+  python scripts/verify.py
+  (dotnet test Astra.slnx --configuration Release --logger trx ...)
+Result: 205 passed, 0 failed, 0 skipped.
 Build completed with TreatWarningsAsErrors enabled and no reported warnings/errors.
+
+Verification source commit: cf4d08a0446f6ab7dd85ca6e81f7956acc9fc375
+Source fingerprint (SHA-256): d662c034107164556eb534c98e8d2f38807239f1046a976f4c59057a83f623cf
+TRX outcomes and machine-readable evidence: output/verification.json
 
 Verified automated behavior:
 - Original 108 cases retained and passing.
+- Policy range checked before rounding; invalid fractional amounts rejected.
+- CLI syntax failures return2 before I/O; valid domain/file failures return1.
+- Console and CSV dates remain ISO Gregorian under en-US and ar-SA.
 - Validated Flight/Reservation factories, immutable snapshots and capacity constraints.
 - Quote/reserve with standard, group10 and family5 policies; delegate short circuit.
 - Cancellation refund/date boundaries and invalid order.

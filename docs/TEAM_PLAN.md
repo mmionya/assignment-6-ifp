@@ -39,5 +39,6 @@ their own work in the individual contribution report.
 - Record one source revision in both submission archives. Upload each student's own
   contribution report. Exclude bin, obj, IDE caches, locks and credentials.
 
-The report worksheets in `output/pdf` are review drafts, not evidence of completed
-personal work. Their reflection fields must be completed truthfully by the students.
+The technical reports in `reports/` and `output/pdf` describe the assigned scope,
+implementation and measured tests. Each student should review the text and adapt their
+individual report to accurately reflect their own contribution before submission.
