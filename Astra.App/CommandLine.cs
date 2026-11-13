@@ -8,17 +8,21 @@ public static class CommandLine
 {
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
+        if (args is ["agency", .. var agencyArgs])
+            return AgencyCommand.Run(agencyArgs, output, error);
+
         if (args is ["demo"])
             return TemporalDemo.Run();
 
         if (args is ["--help"] or ["-h"] or ["help"])
         {
             PrintUsage(output);
+            output.WriteLine(AgencyCommand.Usage);
             output.WriteLine("The review date and pricing policy are explicit inputs.");
             output.WriteLine("find validates the whole file and distinguishes a missing booking from Cancelled=False.");
             output.WriteLine("report runs the quote list and the demand-by-destination report with a configured price policy; an export path writes both as CSV.");
             output.WriteLine("demo shows safe states, rejected transitions, and repeated calculation.");
-            output.WriteLine("Quotes are calculated in memory; no booking is submitted or saved.");
+            output.WriteLine("Legacy batch commands calculate quotes; agency reserve/cancel/transfer persist reservations.");
             output.WriteLine("Exit codes: 0 = success/help; 1 = file, parsing, or domain failure; 2 = invalid arguments.");
             return 0;
         }

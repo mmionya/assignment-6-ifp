@@ -9,3 +9,10 @@ output/
 *.zip
 .env
 .env.*
+demo-state.json
+demo-report.csv
+legacy.csv
+*.lock
+*.tmp
+__pycache__/
+*.pyc

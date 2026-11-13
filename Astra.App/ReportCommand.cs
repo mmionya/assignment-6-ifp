@@ -41,9 +41,9 @@ public static class ReportCommand
     {
         if (exportPath is null)
             return Result<ReportSet>.Success(reports);
-        if (Path.GetFullPath(exportPath) == Path.GetFullPath(inputPath))
-            return Result<ReportSet>.Failure("Export path must differ from the input file; the input is never overwritten.");
-        return ReportFiles.Export(exportPath, ReportFormat.ToCsvLines(reports)).Map(_ => reports);
+        return ReportFiles.ValidateDestination(exportPath, inputPath)
+            .Bind(path => ReportFiles.Export(path, ReportFormat.ToCsvLines(reports)))
+            .Map(_ => reports);
     }
 
     private static int Print(TextWriter output, ReportSet reports, NativeGroupSummary native, string policy, DateOnly asOf, string? exportPath)

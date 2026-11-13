@@ -1,0 +1,16 @@
+{
+  "Version": 1,
+  "Flights": [
+    { "Id": "MOON-1", "Destination": "moon", "Departure": "2030-06-15", "Capacity": 12, "BaseFareUsd": 49000, "IsBookable": true },
+    { "Id": "MOON-2", "Destination": "moon", "Departure": "2030-06-22", "Capacity": 12, "BaseFareUsd": 52000, "IsBookable": true },
+    { "Id": "MOON-FULL", "Destination": "moon", "Departure": "2030-06-25", "Capacity": 2, "BaseFareUsd": 49000, "IsBookable": true },
+    { "Id": "MARS-1", "Destination": "mars", "Departure": "2030-09-10", "Capacity": 10, "BaseFareUsd": 2400000, "IsBookable": true },
+    { "Id": "MARS-2", "Destination": "mars", "Departure": "2030-09-20", "Capacity": 10, "BaseFareUsd": 2500000, "IsBookable": true },
+    { "Id": "EUROPA-1", "Destination": "europa", "Departure": "2031-03-20", "Capacity": 6, "BaseFareUsd": 8700000, "IsBookable": false }
+  ],
+  "Reservations": [
+    { "Id": "DEMO-A", "FlightId": "MOON-1", "Passengers": 2, "TravelClass": "explorer", "TotalUsd": 98000, "Status": "confirmed", "BookedOn": "2030-06-01", "CancelledOn": null, "RefundUsd": 0 },
+    { "Id": "DEMO-B", "FlightId": "MOON-FULL", "Passengers": 2, "TravelClass": "explorer", "TotalUsd": 98000, "Status": "confirmed", "BookedOn": "2030-06-01", "CancelledOn": null, "RefundUsd": 0 },
+    { "Id": "DEMO-C", "FlightId": "MARS-1", "Passengers": 4, "TravelClass": "premium", "TotalUsd": 11664000, "Status": "confirmed", "BookedOn": "2030-06-01", "CancelledOn": null, "RefundUsd": 0 }
+  ]
+}

@@ -1,69 +1,36 @@
-ASTRA / Assignment 7 verification
-Date: 2026-10-25 (Asia/Almaty)
-Environment: Linux x64, .NET SDK 10.0.112, target net10.0.
-Working directory: clean temporary extraction of the submission ZIP.
-Before build: no generated bin/obj directories.
+ASTRA final project verification
+Date: 2026-11-14 (user timezone Asia/Qyzylorda)
+Platform: Windows x64
+SDK: .NET 10.0.403
 
-BUILD AND AUTOMATED TESTS
-Build succeeded: 0 warnings, 0 errors.
-xUnit: 73 passed, 0 failed, 0 skipped.
-Counters confirmed from the test runner's TRX result file.
-49 original A5/A6 cases + 7 retained validation cases + 17 new A7 tests.
-Framework: xunit 2.9.3, xunit.runner.visualstudio 3.1.1,
-Microsoft.NET.Test.Sdk 17.13.0.
+Executed:
+  dotnet test Astra.slnx --no-restore --nologo --verbosity minimal
+Result: 179 passed, 0 failed, 0 skipped.
+Build completed with TreatWarningsAsErrors enabled and no reported warnings/errors.
 
-COMMANDS VERIFIED FROM THE EXTRACTED ROOT
-dotnet build Astra.slnx
-dotnet test Astra.slnx --no-build
-dotnet run --project Astra.App -- samples/bookings.json both 2030-06-15
-All 25 additional CLI scenarios below use the resulting Astra.App assembly.
+Verified automated behavior:
+- Original 108 cases retained and passing.
+- Validated Flight/Reservation factories, immutable snapshots and capacity constraints.
+- Quote/reserve with standard, group10 and family5 policies; delegate short circuit.
+- Cancellation refund/date boundaries and invalid order.
+- Transfer atomicity, capacity, same-destination rule, price differences and refunds.
+- Persistent reserve -> transfer -> cancel with exact values 238140, 252720,
+  +14580 balance and -252720 refund; original sample preserved.
+- Missing/malformed state, strict schema, cross-record references and overbooking.
+- Lock conflict, stream release and state preservation on domain failure.
+- Reports: grouping, totals, deterministic tie-breakers, empty/no-match inputs.
+- Real C invocation in tests and CLI. Fresh process without native DLL returns
+  an explicit DllNotFoundException-based failure without partial output.
+- Export rejects case-only input alias and empty/invalid path; unique temp cleanup.
 
-CLI CHECKS: 25 PASSED
-- standard: exit 0
-- group: exit 0
-- both: exit 0
-- next-day: exit 0
-- after-all: exit 0
-- empty: exit 0
-- find-present: exit 0
-- find-trimmed: exit 0
-- find-cancelled: exit 0
-- find-missing: exit 1
-- find-case-sensitive: exit 1
-- invalid-passengers: exit 1
-- invalid-schedule: exit 1
-- duplicate-id: exit 1
-- missing-fields: exit 1
-- malformed: exit 1
-- missing-file: exit 1
-- missing-directory: exit 1
-- find-malformed: exit 1
-- find-missing-file: exit 1
-- no-arguments: exit 2
-- invalid-policy: exit 2
-- invalid-date: exit 2
-- help: exit 0
-- demo: exit 0
+Manual CLI check:
+  dotnet run --project Astra.App --no-build -- agency reports samples/agency.json 2030-06-01
+Result: retained contract value 11860000.00 USD; native eligible count 1;
+MOON-FULL has 0/2 free seats, MOON-1 has 10/12 free seats.
 
-Verified exact standard/group totals 33433600.00 / 30815140.00 USD,
-4 sorted quotes, empty/filtered success, present/absent/trimmed/case-sensitive
-lookups, false and true cancellation flags, three distinct domain failures,
-missing fields/files/directories, malformed content, bad CLI arguments,
-and preserved A6 temporal-coupling demo.
-All normal failures print only stderr with a useful message and nonzero exit.
-No success total or partial result is printed on failure.
+Earlier VERIFICATION.txt described Assignment 7 (73 tests). It has been superseded
+by this measured final run. Historical README is in docs/assignments-5-8.md.
 
-NEW AUTOMATED COVERAGE
-Integrated file success; quantity/duplicate/schedule/state failures; Some/None
-with legitimate zero/false/empty payloads; Map/Bind success; exact failure
-propagation with 0 dependent callback invocations; protected Result states;
-Match handler selection; controlled missing and truncated temporary files;
-unchanged source files and previous immutable Completed result; CLI outcomes.
-Temporary file test resources are cleaned up.
-
-PACKAGING
-The final ZIP contains 32 source/project/config/document/sample files.
-It excludes bin, obj, IDE caches, Git metadata, TestResults, installed SDK,
-credentials, and nested archives. All executable source/project/config/sample
-bytes in the final ZIP match the clean snapshot tested above.
-README and this report describe the verified Assignment 7 outcome.
+Native binaries: existing Windows x64 DLL executed successfully; not rebuilt here.
+Linux x64 build/source retained; final suite not executed on Linux.
+Final source SHA is written to SOURCE_VERSION.txt and the packaged README/report.
