@@ -110,7 +110,7 @@ public static class AgencyCommand
     {
         var text = new StringBuilder("Flight availability\n");
         foreach (var line in report.Occupancy)
-            text.AppendLine($"{line.FlightId}: {line.Destination}, {line.Departure:yyyy-MM-dd}; " +
+            text.AppendLine($"{line.FlightId}: {line.Destination}, {IsoDate(line.Departure)}; " +
                 $"{line.FreeSeats}/{line.Capacity} seats available; {Money(line.OccupancyPercent)}% occupied");
         if (report.Occupancy.IsEmpty) text.AppendLine("No upcoming bookable flights.");
         return text.ToString().TrimEnd();
@@ -146,7 +146,7 @@ public static class AgencyCommand
         yield return "Report,Flight availability";
         yield return "Flight,Destination,Departure,Capacity,Reserved,Free,OccupancyPercent";
         foreach (var line in reports.Occupancy)
-            yield return $"{CsvCell(line.FlightId)},{line.Destination},{line.Departure:yyyy-MM-dd},{line.Capacity},{line.ReservedSeats},{line.FreeSeats},{Money(line.OccupancyPercent)}";
+            yield return $"{CsvCell(line.FlightId)},{line.Destination},{IsoDate(line.Departure)},{line.Capacity},{line.ReservedSeats},{line.FreeSeats},{Money(line.OccupancyPercent)}";
         yield return "";
         yield return "Report,Contract value by destination";
         yield return "Destination,Confirmed,Cancelled,ContractUsd,RefundUsd,RetainedUsd";
@@ -155,5 +155,6 @@ public static class AgencyCommand
     }
 
     private static string CsvCell(string value) => "\"" + value.Replace("\"", "\"\"") + "\"";
+    private static string IsoDate(DateOnly value) => value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private static string Money(decimal value) => value.ToString("F2", CultureInfo.InvariantCulture);
 }
