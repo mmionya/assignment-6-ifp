@@ -2,6 +2,10 @@
 
 Run from the repository root. Work with a copy of the sample state.
 
+For a repeatable demonstration, run `python scripts/demo.py`. It builds Release,
+creates a new `output/demo-*` directory, checks that the rejected transfer preserves
+the file, and saves the final state, CSV and console transcript. It never edits the sample.
+
 ```powershell
 Copy-Item samples/agency.json demo-state.json
 dotnet run --project Astra.App -- agency quote demo-state.json MOON-1 4 premium group10 2030-06-01
