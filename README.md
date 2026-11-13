@@ -8,9 +8,10 @@ The Assignment 5-8 quote pipeline remains available.
 Team: **Zhumazhan Miras (mmionya)** and **Abdykhamit Beknur (ADSKI-KIADS)**, IT-2512.
 Repository: https://github.com/mmionya/assignment-6-ifp
 Submission branch: `main`.
-Source revision: see `SOURCE_VERSION.txt` in a packaged delivery, or `git log -1`
-in the checkout. The package script records the exact source commit; do not submit
-an archive while the checkout has uncommitted changes.
+Verified report/source revision: `d1b96b60bdc3d9c13ceda77120e88393f5d7fda2`.
+The following publication commit adds the PDFs without changing application code.
+The package script records this exact source revision in `SOURCE_VERSION.txt`;
+package from a clean checkout. Published PDFs are in [reports](reports/README.md).
 
 ## Quick start
 
