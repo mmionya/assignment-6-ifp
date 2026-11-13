@@ -209,7 +209,7 @@ public sealed class AgencyWorkflowTests
     {
         var full = new[] { args[0], Sample }.Concat(args.Skip(1)).ToArray();
         var result = Run(full);
-        Assert.Equal(1, result.Code);
+        Assert.Equal(2, result.Code);
         Assert.Empty(result.Output);
         Assert.NotEmpty(result.Error);
     }
