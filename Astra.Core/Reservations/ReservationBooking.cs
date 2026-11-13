@@ -38,10 +38,11 @@ public static class ReservationBooking
     {
         try
         {
-            var amount = decimal.Round(policy(request.Flight, request.Passengers, request.TravelClass), 2, MidpointRounding.AwayFromZero);
-            return amount < 0m || amount > ReservationRules.MaximumTotal
-                ? Result<ReservationQuote>.Failure("Pricing policy returned an amount outside the supported range.")
-                : Result<ReservationQuote>.Success(new(request.Flight, request.Passengers, request.TravelClass, amount));
+            var rawAmount = policy(request.Flight, request.Passengers, request.TravelClass);
+            if (rawAmount < 0m || rawAmount > ReservationRules.MaximumTotal)
+                return Result<ReservationQuote>.Failure("Pricing policy returned an amount outside the supported range.");
+            var amount = decimal.Round(rawAmount, 2, MidpointRounding.AwayFromZero);
+            return Result<ReservationQuote>.Success(new(request.Flight, request.Passengers, request.TravelClass, amount));
         }
         catch (OverflowException)
         {

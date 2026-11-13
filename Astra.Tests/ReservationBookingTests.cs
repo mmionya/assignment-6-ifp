@@ -165,6 +165,40 @@ public sealed class ReservationBookingTests
         Assert.Single(first.State.Reservations);
     }
 
+    [Theory]
+    [InlineData("-0.001")]
+    [InlineData("-0.004")]
+    [InlineData("10800000000.001")]
+    [InlineData("10800000000.004")]
+    public void RoundingCannotHideAnOutOfRangePolicyResult(string rawValue)
+    {
+        var state = State();
+        var calls = 0;
+        var value = decimal.Parse(rawValue, System.Globalization.CultureInfo.InvariantCulture);
+        decimal Policy(Flight _, int __, TravelClass ___) { calls++; return value; }
+        var quote = ReservationBooking.Quote(state, "MOON", 1, TravelClass.Explorer, Today, Policy);
+        Assert.False(quote.IsSuccess);
+        Assert.Equal(1, calls);
+        calls = 0;
+        var reserve = ReservationBooking.Reserve(state, "A", "MOON", 1, TravelClass.Explorer, Today, Policy);
+        Assert.False(reserve.IsSuccess);
+        Assert.Equal(1, calls);
+        Assert.Empty(state.Reservations);
+        Assert.Equal(12, state.AvailableSeats("MOON"));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("10800000000")]
+    public void ExactPolicyRangeBoundariesRemainValid(string rawValue)
+    {
+        var value = decimal.Parse(rawValue, System.Globalization.CultureInfo.InvariantCulture);
+        var result = ReservationBooking.Reserve(State(), "A", "MOON", 1,
+            TravelClass.Explorer, Today, (_, _, _) => value);
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(value, result.Value.Booking.TotalUsd);
+    }
+
     [Fact]
     public void DuplicateAndCancelledIdsCannotBeReusedAndSkipThePriceDelegate()
     {
