@@ -1,19 +1,22 @@
 """Generate reviewable PDF reports after verification. Requires reportlab.
 
-python scripts/make_reports.py --source-commit <git SHA> --test-count <passed cases>
+python scripts/make_reports.py --source-commit <git SHA> --verification output/verification.json
 """
 import argparse
 import json
+import hashlib
+import subprocess
 from pathlib import Path
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
+
+from release_evidence import load_verification, test_result
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output" / "pdf"
@@ -73,10 +76,13 @@ def write(filename, story):
     document.build(story, onFirstPage=footer, onLaterPages=footer)
 
 
-def group_report(revision, count):
+def group_report(revision, evidence):
+    count = evidence["passed"]
+    platform = escape(evidence["platform"])
+    sdk = escape(evidence["sdk_version"])
     story = [p("ASTRA", "TitleAstra"), p("Space Travel Agency - Group Project Report", "SubtitleAstra"),
         p("<b>Team:</b> Zhumazhan Miras and Abdykhamit Beknur<br/><b>Group:</b> IT-2512<br/>"
-          "<b>Prepared:</b> 14 November 2026<br/><b>Platform verified:</b> Windows x64 / .NET SDK 10.0.403"),
+          f"<b>Prepared:</b> 14 November 2026<br/><b>Platform verified:</b> {platform} / .NET SDK {sdk}"),
         p("Problem and implemented scope", "HeadingAstra"),
         p("A fictional space-travel agent needs consistent quotes, seat availability and reservation changes. "
           "ASTRA prevents overbooking and invalid changes while making every rule testable without files or console I/O. "
@@ -137,8 +143,9 @@ def group_report(revision, count):
           "Windows x64 DLL and Linux x64 SO, headers and build scripts are included. The final Windows call was executed."),
         PageBreak(),
         p("Verification and examples", "TitleAstra"),
-        p(f"<b>Measured automated result: {count} passed, 0 failed, 0 skipped.</b> The suite runs on Windows x64 with "
-          ".NET 10.0.403. Original baseline: 108 passing cases. VERIFICATION.txt records the final commands and result."),
+        p(f"<b>Measured automated result: {count} passed, 0 failed, 0 skipped.</b> Verified in Release on {platform}, "
+          f".NET SDK {sdk}. Results are read from the TRX output captured by scripts/verify.py. "
+          "The source fingerprint must match before a report can be generated. Original baseline: 108 passing cases."),
         table(["Scenario", "Expected and verified result"], [
             ["Quote / reserve", "MOON-1, 4 Premium, Group10: 238140.00 USD. Confirmation reduces available seats by four."],
             ["Transfer", "MOON-2 has 52000 base fare: new total 252720.00; balance +14580.00. Old seats are released."],
@@ -153,6 +160,8 @@ def group_report(revision, count):
         p("The earlier CSV export compared paths case-sensitively and could overwrite input JSON on Windows with an "
           "uppercase output spelling. Empty export paths escaped as exceptions. Both now return clear failures. A fixed "
           "'.tmp' path was replaced by unique, exclusively created temporary files to prevent source/temp collisions."),
+        p("Additional regressions cover invalid fractional policy prices before rounding, syntax errors returning exit 2 "
+          "while business failures return 1, and Gregorian ISO dates under en-US and ar-SA regional settings."),
         p("All tests compare actual and expected results with assertions. The suite includes pure validation, complete "
           "workflows, file failures, ordering, failure propagation, configured policies, lazy execution, resource handling "
           "and native integration. See the named test files in docs/TEAM_PLAN.md."),
@@ -186,72 +195,64 @@ def group_report(revision, count):
     write("ASTRA_Group_Project_Report.pdf", story)
 
 
-def individual(name, login, role, files, tests, change, revision, count, filename):
-    story = [p(name, "TitleAstra"), p("Individual contribution report - review draft", "SubtitleAstra"),
-        p(f"<b>Group:</b> IT-2512<br/><b>Project:</b> ASTRA Space Travel Agency<br/>"
-          f"<b>Git identity:</b> {login}<br/><b>Team:</b> Zhumazhan Miras; Abdykhamit Beknur"),
-        p("Report status", "HeadingAstra"),
-        p("This draft records an assigned implementation and defense area. Before submission, the student must "
-          "complete the personal evidence section with their actual work and own wording."),
-        p("Assigned scope and integration", "HeadingAstra"), p(role),
-        p("Source evidence", "HeadingAstra"), p(files),
-        p("Automated evidence", "HeadingAstra"), p(tests),
-        p(f"The complete verified suite has {count} passing cases and no failures/skips. These are measured suite "
-          "results, not a claim that the named student personally authored every test."),
-        p("Observed technical issue / rehearsal", "HeadingAstra"), p(change),
-        PageBreak(), p("Personal evidence to complete", "TitleAstra"),
-        p("Write these sections in your own words after reviewing and running the project. Do not claim work or "
-          "understanding that has not occurred. File references alone are not evidence of personal contribution."),
-    ]
-    for heading, question in [
-        ("1. My actual work", "Which methods did I implement, review or change? Identify precise files and distinguish my changes from shared code."),
-        ("2. Functional reasoning", "Explain one pure transformation, Map versus Bind, a validated prerequisite, and why the original state survives a failed change."),
-        ("3. My tests and results", "Which tests did I personally write or change? State input, expected result, actual result and the command I ran."),
-        ("4. Difficulty I resolved", "Describe a real defect or difficulty I investigated, the cause, my change and how I verified it."),
-        ("5. Shared work and remaining work", "State what came from my teammate, what I reviewed myself and any incomplete work."),
-    ]:
-        story += [p(heading, "HeadingAstra"), p(question),
-                  p("________________________________________________________________________________<br/>"
-                    "________________________________________________________________________________", "SmallAstra")]
-    story += [Spacer(1, 6 * mm), p(f"Source revision: {escape(revision)}<br/>Branch: main", "SmallAstra")]
-    write(filename, story)
+def individual(profile_path, revision, evidence):
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    story = []
+    for number, page in enumerate(profile["pages"]):
+        if number:
+            story += [PageBreak(), p(escape(page["title"]), "TitleAstra")]
+        else:
+            story += [p(escape(profile["name"]), "TitleAstra"),
+                p("Individual Contribution Report", "SubtitleAstra"),
+                p(f"<b>Group:</b> IT-2512<br/><b>Project:</b> ASTRA Space Travel Agency<br/>"
+                  f"<b>Git identity:</b> {escape(profile['login'])}<br/>"
+                  "<b>Team:</b> Zhumazhan Miras; Abdykhamit Beknur"),
+                p(escape(profile["role"])), p(escape(page["title"]), "HeadingAstra")]
+        for block in page["blocks"]:
+            if "heading" in block:
+                story.append(p(escape(block["heading"]), "HeadingAstra"))
+            for paragraph in block.get("paragraphs", []):
+                story.append(p(escape(paragraph)))
+            if "tests" in block:
+                story.append(table(["Test method", "Expected result", "Actual result"],
+                    [[test["method"], test["expected"], test_result(evidence, test["method"])]
+                     for test in block["tests"]], [62, 81, 27]))
+                story.append(Spacer(1, 4 * mm))
+                story.append(p(f"Complete shared suite: {evidence['passed']} passed, 0 failed, 0 skipped; "
+                    f"Release / {escape(evidence['platform'])} / .NET {escape(evidence['sdk_version'])}. "
+                    "The results above are extracted from actual test outcomes.", "SmallAstra"))
+    story += [Spacer(1, 4 * mm),
+        p("This report describes the assigned module scope and verified project behavior. "
+          "Each student should review this account before the individual defense.", "SmallAstra"),
+        p(f"Repository: https://github.com/mmionya/assignment-6-ifp<br/>"
+          f"Branch: main<br/>Source revision: {escape(revision)}", "SmallAstra")]
+    write(profile["filename"], story)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-commit", required=True)
-    parser.add_argument("--test-count", type=int, required=True)
+    parser.add_argument("--verification", default=str(ROOT / "output" / "verification.json"))
+    parser.add_argument("--git", default="git")
     args = parser.parse_args()
-    if len(args.source_commit) != 40 or any(c not in "0123456789abcdef" for c in args.source_commit):
-        parser.error("source-commit must be the full lowercase Git SHA")
+    revision = subprocess.check_output([args.git, "rev-parse", "HEAD"], cwd=ROOT).decode().strip()
+    if args.source_commit != revision:
+        parser.error("source-commit must match the current checkout HEAD")
+    try:
+        evidence = load_verification(args.verification)
+    except (ValueError, OSError, KeyError) as error:
+        parser.error(str(error))
     OUT.mkdir(parents=True, exist_ok=True)
-    group_report(args.source_commit, args.test_count)
-    individual("Abdykhamit Beknur", "ADSKI-KIADS",
-        "Validated Flight/Reservation factories, immutable ReservationState, configurable pricing and the quote/reserve "
-        "pipeline. Pure occupancy and contract-value reports support operational decisions. The CLI loads a validated "
-        "state, calls these functions and saves only a successful replacement.",
-        "Astra.Core/Reservations: Flight.Create; Reservation.Create; ReservationState.Create/AvailableSeats; "
-        "ReservationPricing.CreatePolicy; ReservationBooking.Quote/Reserve; AgencyReports.Build.",
-        "ReservationBookingTests covers factories, immutable snapshots, pricing, availability, duplicate IDs and "
-        "short-circuit behavior. AgencyWorkflowTests verifies report ties, grouping, empty inputs and exact contract values.",
-        "The previous app had pricing requests but no capacity-backed reservations. The new state derives free seats "
-        "from confirmed records. Rehearse adding a 3+ passenger 7% configured policy and an exact boundary assertion.",
-        args.source_commit, args.test_count, "Beknur_Individual_Review_Draft.pdf")
-    individual("Zhumazhan Miras", "mmionya",
-        "Cancellation/refund and transfer workflows, strict JSON persistence, CLI integration and safe exports. Changes "
-        "first validate active status, dates and target capacity; a successful immutable state is saved under an exclusive "
-        "file lock. Native integration is exercised by reports and failure tests.",
-        "Astra.Core/Reservations/ReservationChanges: Cancel, Transfer, RequireActive, RequireTarget, Replace. "
-        "Astra.App: ReservationStore.Parse/Update; AgencyCommand; ReportFiles.ValidateDestination/Export; ReportCommand.",
-        "ReservationChangesTests covers refunds and transfer boundaries. AgencyWorkflowTests covers persisted "
-        "end-to-end changes, missing/malformed files, locking and actual native loader failure. ExportSafetyTests "
-        "covers case aliases, empty paths, temporary collisions and cleanup.",
-        "The earlier Windows export could overwrite JSON when only filename case differed. Path validation and "
-        "unique temporary files address this. Rehearse adding a two-day minimum cancellation rule and boundary tests.",
-        args.source_commit, args.test_count, "Miras_Individual_Review_Draft.pdf")
-    (OUT / "report_metadata.json").write_text(json.dumps({"source_commit": args.source_commit,
-        "passed_tests": args.test_count, "individual_reports": "review drafts"}, indent=2), encoding="utf-8")
-    print("Generated three PDF reports in", OUT)
+    group_report(revision, evidence)
+    for person in ("beknur", "miras"):
+        individual(ROOT / "docs" / "reports" / (person + ".json"), revision, evidence)
+    filenames = ["ASTRA_Group_Project_Report.pdf", "Beknur_Individual_Report.pdf", "Miras_Individual_Report.pdf"]
+    (OUT / "report_metadata.json").write_text(json.dumps({
+        "source_commit": revision, "source_fingerprint": evidence["source_fingerprint"],
+        "passed_tests": evidence["passed"], "individual_reports": "technical reports for personal review",
+        "files": {name: hashlib.sha256((OUT / name).read_bytes()).hexdigest() for name in filenames}
+    }, indent=2), encoding="utf-8")
+    print("Generated three verified PDF reports in", OUT)
 
 
 if __name__ == "__main__":
