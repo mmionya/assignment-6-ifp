@@ -5,6 +5,8 @@ namespace Astra.Tests;
 
 public class ExportSafetyTests
 {
+    private const string EmptyState = """{"Version":1,"Flights":[],"Reservations":[]}""";
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -12,16 +14,16 @@ public class ExportSafetyTests
     public void InvalidDestinationIsAnExplicitFailureWithoutPartialOutput(string destination)
     {
         using var directory = new TemporaryDirectory();
-        var input = directory.Write("bookings.json", "[]");
+        var input = directory.Write("state.json", EmptyState);
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var code = ReportCommand.Run([input, "2030-06-15", "standard", destination], output, error);
+        var code = AgencyCommand.Run(["reports", input, "2030-06-01", destination], output, error);
 
         Assert.Equal(1, code);
         Assert.Empty(output.ToString());
         Assert.NotEmpty(error.ToString());
-        Assert.Equal("[]", File.ReadAllText(input));
+        Assert.Equal(EmptyState, File.ReadAllText(input));
         Assert.Single(Directory.GetFiles(directory.Path));
     }
 
@@ -29,26 +31,26 @@ public class ExportSafetyTests
     public void SameInputWithDifferentPathSpellingCannotBeOverwritten()
     {
         using var directory = new TemporaryDirectory();
-        var input = directory.Write("bookings.json", "[]");
-        var destination = System.IO.Path.Combine(directory.Path, ".", "bookings.json");
+        var input = directory.Write("state.json", EmptyState);
+        var destination = System.IO.Path.Combine(directory.Path, ".", "state.json");
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var code = ReportCommand.Run([input, "2030-06-15", "standard", destination], output, error);
+        var code = AgencyCommand.Run(["reports", input, "2030-06-01", destination], output, error);
 
         Assert.Equal(1, code);
         Assert.Empty(output.ToString());
         Assert.Contains("never overwritten", error.ToString());
-        Assert.Equal("[]", File.ReadAllText(input));
+        Assert.Equal(EmptyState, File.ReadAllText(input));
     }
 
     [Fact]
     public void CaseOnlyInputAliasUsesThePlatformPathComparison()
     {
         using var directory = new TemporaryDirectory();
-        var input = directory.Write("bookings.json", "[]");
-        var destination = System.IO.Path.Combine(directory.Path, "BOOKINGS.JSON");
-        var expectedSafe = !OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS();
+        var input = directory.Write("state.json", EmptyState);
+        var destination = System.IO.Path.Combine(directory.Path, "STATE.JSON");
+        var expectedSafe = !OperatingSystem.IsWindows();
 
         var validation = ReportFiles.ValidateDestination(destination, input);
 
@@ -57,28 +59,28 @@ public class ExportSafetyTests
         {
             using var output = new StringWriter();
             using var error = new StringWriter();
-            Assert.Equal(1, ReportCommand.Run([input, "2030-06-15", "standard", destination], output, error));
+            Assert.Equal(1, AgencyCommand.Run(["reports", input, "2030-06-01", destination], output, error));
             Assert.Contains("never overwritten", error.ToString());
             Assert.Empty(output.ToString());
         }
-        Assert.Equal("[]", File.ReadAllText(input));
+        Assert.Equal(EmptyState, File.ReadAllText(input));
     }
 
     [Fact]
     public void FormerFixedTemporaryFilenameCanSafelyBeTheInputFile()
     {
         using var directory = new TemporaryDirectory();
-        var input = directory.Write("report.csv.tmp", "[]");
+        var input = directory.Write("report.csv.tmp", EmptyState);
         var destination = System.IO.Path.Combine(directory.Path, "report.csv");
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var code = ReportCommand.Run([input, "2030-06-15", "standard", destination], output, error);
+        var code = AgencyCommand.Run(["reports", input, "2030-06-01", destination], output, error);
 
         Assert.Equal(0, code);
         Assert.Empty(error.ToString());
-        Assert.Equal("[]", File.ReadAllText(input));
-        Assert.Contains("Report,Quote list", File.ReadAllText(destination));
+        Assert.Equal(EmptyState, File.ReadAllText(input));
+        Assert.Contains("Report,Flight availability", File.ReadAllText(destination));
         Assert.Equal(2, Directory.GetFiles(directory.Path).Length);
     }
 
@@ -110,11 +112,13 @@ public class ExportSafetyTests
         using var directory = new TemporaryDirectory();
         var destination = directory.Write("report.csv", "original report");
         var unrelated = directory.Write("report.csv.tmp", "unrelated input");
+        TrackingFileStream? tracked = null;
 
-        var result = ReportFiles.Export(destination, FailingLines());
+        var result = ReportFiles.Export(destination, FailingLines(), path => tracked = new TrackingFileStream(path));
 
         Assert.False(result.IsSuccess);
         Assert.Contains("simulated write failure", result.Error);
+        Assert.True(tracked!.Disposed);
         Assert.Equal("original report", File.ReadAllText(destination));
         Assert.Equal("unrelated input", File.ReadAllText(unrelated));
         Assert.Equal(2, Directory.GetFiles(directory.Path).Length);
@@ -140,10 +144,64 @@ public class ExportSafetyTests
         Assert.Equal("created by a competing writer", File.ReadAllText(encounteredPath!));
     }
 
-    private static IEnumerable<string> FailingLines()
+    [Fact]
+    public void ExportWritesTheLinesAndReleasesTheStreamAfterSuccess()
+    {
+        using var directory = new TemporaryDirectory();
+        var destination = directory.Write("report.csv", "old content");
+        TrackingFileStream? tracked = null;
+
+        var result = ReportFiles.Export(destination, ["one", "two"], path => tracked = new TrackingFileStream(path));
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.True(tracked!.Disposed);
+        Assert.Equal(["one", "two"], File.ReadAllLines(destination));
+        Assert.Single(Directory.GetFiles(directory.Path));
+    }
+
+    [Fact]
+    public void UnexpectedErrorsStillReleaseTheStreamAndRemoveTheTemporaryFile()
+    {
+        using var directory = new TemporaryDirectory();
+        var destination = System.IO.Path.Combine(directory.Path, "report.csv");
+        TrackingFileStream? tracked = null;
+
+        Assert.Throws<InvalidOperationException>(() => ReportFiles.Export(destination,
+            FailingLines(new InvalidOperationException("bug")), path => tracked = new TrackingFileStream(path)));
+
+        Assert.True(tracked!.Disposed);
+        Assert.Empty(Directory.GetFiles(directory.Path));
+    }
+
+    [Fact]
+    public void ExportToAMissingDirectoryFailsWithThePathAndLeavesNothingBehind()
+    {
+        using var directory = new TemporaryDirectory();
+        var destination = System.IO.Path.Combine(directory.Path, "missing", "report.csv");
+
+        var result = ReportFiles.Export(destination, ["line"]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(destination, result.Error);
+        Assert.Contains("Cannot export", result.Error);
+        Assert.Empty(Directory.GetFileSystemEntries(directory.Path));
+    }
+
+    private static IEnumerable<string> FailingLines(Exception? failure = null)
     {
         yield return "first";
-        throw new IOException("simulated write failure");
+        throw failure ?? new IOException("simulated write failure");
+    }
+
+    private sealed class TrackingFileStream : FileStream
+    {
+        public bool Disposed { get; private set; }
+        public TrackingFileStream(string path) : base(path, FileMode.CreateNew, FileAccess.Write, FileShare.None) { }
+        protected override void Dispose(bool disposing)
+        {
+            Disposed = true;
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class TemporaryDirectory : IDisposable

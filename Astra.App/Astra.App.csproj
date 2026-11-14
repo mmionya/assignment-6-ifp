@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup><ProjectReference Include="../Astra.Core/Astra.Core.csproj" /></ItemGroup>
-  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+  <ItemGroup><InternalsVisibleTo Include="Astra.Tests" /></ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
     <None Include="native/runtimes/linux-x64/native/libastra_native.so" Link="libastra_native.so" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup Condition="'$(OS)' == 'Windows_NT'">

@@ -8,7 +8,7 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1" PrivateAssets="all" />
   </ItemGroup>
-  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
     <None Include="../Astra.App/native/runtimes/linux-x64/native/libastra_native.so" Link="libastra_native.so" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
@@ -16,6 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Astra.App/Astra.App.csproj" />
-    <None Include="../samples/*.json" Link="samples/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../samples/agency.json" Link="samples/agency.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

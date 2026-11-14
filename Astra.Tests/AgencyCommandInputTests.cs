@@ -7,6 +7,42 @@ public sealed class AgencyCommandInputTests
 {
     private static string Sample => Path.Combine(AppContext.BaseDirectory, "samples", "agency.json");
 
+    [Fact]
+    public void RootHelpAndNoArgumentsShowAgencyUsage()
+    {
+        foreach (var args in new string[][] { [], ["help"], ["--help"], ["-h"] })
+        {
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            Assert.Equal(0, CommandLine.Run(args, output, error));
+            Assert.Contains("ASTRA agency commands", output.ToString());
+            Assert.Empty(error.ToString());
+        }
+    }
+
+    [Fact]
+    public void LegacyCommandsAreRejectedWithoutChangingState()
+    {
+        var before = File.ReadAllBytes(Sample);
+        foreach (var args in new string[][]
+        {
+            ["demo"],
+            ["report", Sample, "2030-06-01", "standard"],
+            ["find", Sample, "DEMO-A"],
+            [Sample, "both", "2030-06-01"]
+        })
+        {
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            Assert.Equal(2, CommandLine.Run(args, output, error));
+            Assert.Empty(output.ToString());
+            Assert.NotEmpty(error.ToString());
+            Assert.Equal(before, File.ReadAllBytes(Sample));
+        }
+    }
+
     [Theory]
     [InlineData("unknown")]
     [InlineData("flights")]

@@ -2,7 +2,6 @@ namespace Astra.Core.Reservations;
 
 public static class ReservationPricing
 {
-    // Configure once, then apply the resulting function to any valid flight/request.
     public static readonly Func<PricingConfig, Func<Flight, int, TravelClass, decimal>> CreatePolicy =
         config =>
         {
@@ -17,7 +16,7 @@ public static class ReservationPricing
     public static decimal Standard(Flight flight, int passengers, TravelClass travelClass)
     {
         ArgumentNullException.ThrowIfNull(flight);
-        if (passengers is < 1 or > 6) throw new ArgumentOutOfRangeException(nameof(passengers));
+        if (passengers is < 1 or > Reservation.MaximumPassengers) throw new ArgumentOutOfRangeException(nameof(passengers));
         var multiplier = travelClass switch
         {
             TravelClass.Explorer => 1m,

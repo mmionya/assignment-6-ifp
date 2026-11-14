@@ -14,7 +14,7 @@ public static class AgencyReports
     public static AgencyReportSet Build(ReservationState state, DateOnly asOf)
     {
         var occupancy = state.Flights
-            .Where(f => f.IsBookable && f.Departure > asOf)
+            .Upcoming(asOf)
             .Select(f =>
             {
                 var free = state.AvailableSeats(f.Id);

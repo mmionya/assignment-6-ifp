@@ -33,8 +33,6 @@ public static class AgencyCommand
             message => { error.WriteLine(message); return 2; });
     }
 
-    // Parse all syntax before opening a file or acquiring a state lock. The returned
-    // function performs the business operation only after argument parsing succeeds.
     private static Result<Func<Result<string>>> ParseCommand(string[] args) => args switch
     {
         ["flights", var path, var date] => Date(date).Map<Func<Result<string>>>(asOf => () => ReservationStore.Load(path)
@@ -137,20 +135,20 @@ public static class AgencyCommand
             var result = text.ToString().TrimEnd();
             return export is null ? Result<string>.Success(result)
                 : ReportFiles.ValidateDestination(export, path)
-                    .Bind(destination => ReportFiles.Export(destination, Csv(reports)))
+                    .Bind(destination => ReportFiles.Export(destination, Csv(reports.Occupancy, reports.Finance)))
                     .Map(_ => result + Environment.NewLine + $"Exported: {export}");
         });
 
-    private static IEnumerable<string> Csv(AgencyReportSet reports)
+    internal static IEnumerable<string> Csv(IEnumerable<OccupancyLine> occupancy, IEnumerable<FinanceLine> finance)
     {
         yield return "Report,Flight availability";
         yield return "Flight,Destination,Departure,Capacity,Reserved,Free,OccupancyPercent";
-        foreach (var line in reports.Occupancy)
+        foreach (var line in occupancy)
             yield return $"{CsvCell(line.FlightId)},{line.Destination},{IsoDate(line.Departure)},{line.Capacity},{line.ReservedSeats},{line.FreeSeats},{Money(line.OccupancyPercent)}";
         yield return "";
         yield return "Report,Contract value by destination";
         yield return "Destination,Confirmed,Cancelled,ContractUsd,RefundUsd,RetainedUsd";
-        foreach (var line in reports.Finance)
+        foreach (var line in finance)
             yield return $"{line.Destination},{line.Confirmed},{line.Cancelled},{Money(line.ContractUsd)},{Money(line.RefundUsd)},{Money(line.RetainedUsd)}";
     }
 

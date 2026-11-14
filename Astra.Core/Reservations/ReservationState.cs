@@ -42,7 +42,6 @@ public sealed class ReservationState
     public Option<Reservation> FindReservation(string? id) => Reservations.FirstOrDefault(b => b.Id == id?.Trim()) is { } found
         ? new Option<Reservation>.Some(found) : new Option<Reservation>.None();
 
-    // A missing flight has no seats; workflows distinguish missing from full via FindFlight first.
     public int AvailableSeats(string flightId, string? excludingReservationId = null) => FindFlight(flightId) switch
     {
         Option<Flight>.Some found => found.Value.Capacity - Reservations

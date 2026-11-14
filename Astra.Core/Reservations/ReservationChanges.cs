@@ -1,6 +1,5 @@
 namespace Astra.Core.Reservations;
 
-/// <summary>Pure changes: a failed operation never publishes a partially changed snapshot.</summary>
 public static class ReservationChanges
 {
     public static Result<ReservationChange> Cancel(ReservationState state, string id, DateOnly asOf)

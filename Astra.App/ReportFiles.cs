@@ -5,7 +5,6 @@ namespace Astra.App;
 
 public static class ReportFiles
 {
-    // File/path inspection belongs at this I/O boundary, never in the pure reports.
     public static Result<string> ValidateDestination(string path, string? protectedInputPath = null)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -13,13 +12,12 @@ public static class ReportFiles
         try
         {
             var destination = Path.GetFullPath(path);
-            var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            var comparison = OperatingSystem.IsWindows()
                 ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
             if (protectedInputPath is not null &&
                 string.Equals(destination, Path.GetFullPath(protectedInputPath), comparison))
                 return Result<string>.Failure("Export path must differ from the input file; the input is never overwritten.");
 
-            // Reject links rather than guessing the target of a linked parent directory.
             if (HasLinkedComponent(destination) ||
                 (protectedInputPath is not null && HasLinkedComponent(Path.GetFullPath(protectedInputPath))))
                 return Result<string>.Failure("Export paths and protected input paths must not contain symbolic links or junctions.");
@@ -37,8 +35,6 @@ public static class ReportFiles
         var destination = ValidateDestination(path);
         if (!destination.IsSuccess) return destination;
 
-        // A unique, exclusively created sibling avoids collisions with source files
-        // named report.csv.tmp and keeps the final move on the same filesystem.
         var tempPath = Path.Combine(Path.GetDirectoryName(destination.Value)!,
             $".{Path.GetFileName(destination.Value)}.{Guid.NewGuid():N}.tmp");
         var ownsTemp = false;

@@ -18,7 +18,7 @@ public static class ReservationBooking
         int passengers, TravelClass travelClass, DateOnly asOf)
     {
         if (asOf == default) return Result<CheckedRequest>.Failure("Review date is required.");
-        if (passengers is < 1 or > 6) return Result<CheckedRequest>.Failure("Passengers must be between 1 and 6.");
+        if (passengers is < 1 or > Reservation.MaximumPassengers) return Result<CheckedRequest>.Failure($"Passengers must be between 1 and {Reservation.MaximumPassengers}.");
         if (!Enum.IsDefined(travelClass)) return Result<CheckedRequest>.Failure("Unknown travel class.");
         return state.FindFlight(flightId) switch
         {

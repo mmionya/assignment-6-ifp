@@ -5,7 +5,6 @@ using Astra.Core.Reservations;
 
 namespace Astra.App;
 
-// DTOs belong to the file boundary. Domain objects can only be made by their factories.
 public static class ReservationStore
 {
     private sealed record FlightData(string? Id, Destination? Destination, DateOnly? Departure,
@@ -28,7 +27,28 @@ public static class ReservationStore
         }
     };
 
-    public static Result<ReservationState> Load(string path) => BookingFiles.Load(path, Parse);
+    public static Result<ReservationState> Load(string path)
+    {
+        string json;
+        try
+        {
+            json = File.ReadAllText(path);
+        }
+        catch (FileNotFoundException)
+        {
+            return Result<ReservationState>.Failure($"Cannot read input '{path}': file not found.");
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return Result<ReservationState>.Failure($"Cannot read input '{path}': directory not found.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or ArgumentException or NotSupportedException)
+        {
+            return Result<ReservationState>.Failure($"Cannot read input '{path}': {ex.Message}");
+        }
+        return Parse(json).WithContext($"Input '{path}'");
+    }
 
     public static Result<ReservationState> Parse(string? json)
     {
@@ -82,8 +102,6 @@ public static class ReservationStore
     public static Result<string> Save(string path, ReservationState state) =>
         ReportFiles.Export(path, [Serialize(state)]);
 
-    // The lock is owned until load -> business operation -> replacement completes.
-    // Keep the empty lock file: deleting it can race another process opening the same lock.
     public static Result<ReservationChange> Update(string path,
         Func<ReservationState, Result<ReservationChange>> operation) =>
         ReportFiles.ValidateDestination(path).Bind(fullPath =>

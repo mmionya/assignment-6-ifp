@@ -1,11 +1,15 @@
+using Astra.Core.Reservations;
+
 namespace Astra.Core;
-public static class BookingExtensions
+
+public static class ReservationExtensions
 {
-    public static IEnumerable<BookingRequest> Upcoming( this IEnumerable<BookingRequest> bookings, DateOnly asOf)
+    public static IEnumerable<Flight> Upcoming(this IEnumerable<Flight> flights, DateOnly asOf)
     {
-        ArgumentNullException.ThrowIfNull(bookings);
-        return bookings.Where(booking => !booking.IsCancelled && booking.Departure >= asOf);
+        ArgumentNullException.ThrowIfNull(flights);
+        return flights.Where(flight => flight.IsBookable && flight.Departure > asOf);
     }
+
     public static Result<T> WithContext<T>(this Result<T> result, string context)
     {
         ArgumentNullException.ThrowIfNull(result);

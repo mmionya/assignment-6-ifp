@@ -14,6 +14,43 @@ public sealed class ReservationBookingTests
         ReservationState.Create([Flight(capacity, open)], []).Value;
 
     [Theory]
+    [InlineData("A\u2028B")]
+    [InlineData("A\u200BB")]
+    [InlineData("A\u2029B")]
+    public void FactoriesRejectInvisibleUnicodeInIds(string id)
+    {
+        Assert.False(Astra.Core.Reservations.Flight.Create(id, Destination.Moon, Departure, 2, 1m, true).IsSuccess);
+        Assert.False(Reservation.Create(id, "MOON", 1, TravelClass.Explorer, 1m,
+            ReservationStatus.Confirmed, Today).IsSuccess);
+    }
+
+    [Fact]
+    public void FactoriesEnforceExactIdLengthAfterTrimming()
+    {
+        var longest = new string('A', 40);
+        var flight = Astra.Core.Reservations.Flight.Create(" " + longest + " ", Destination.Moon, Departure, 2, 1m, true);
+        var booking = Reservation.Create(" " + longest + " ", "MOON", 1, TravelClass.Explorer, 1m,
+            ReservationStatus.Confirmed, Today);
+
+        Assert.Equal(longest, flight.Value.Id);
+        Assert.Equal(longest, booking.Value.Id);
+        Assert.False(Astra.Core.Reservations.Flight.Create(longest + "A", Destination.Moon, Departure, 2, 1m, true).IsSuccess);
+        Assert.False(Reservation.Create(longest + "A", "MOON", 1, TravelClass.Explorer, 1m,
+            ReservationStatus.Confirmed, Today).IsSuccess);
+    }
+
+    [Fact]
+    public void InvalidPricingConfigurationIsAUsefulFailureAndEdgesAreAccepted()
+    {
+        Assert.Contains("Group minimum", PricingConfig.Create(0, 10m).Error);
+        Assert.Contains("Group minimum", PricingConfig.Create(7, 10m).Error);
+        Assert.Contains("Discount percent", PricingConfig.Create(4, -1m).Error);
+        Assert.Contains("Discount percent", PricingConfig.Create(4, 100.1m).Error);
+        Assert.True(PricingConfig.Create(1, 0m).IsSuccess);
+        Assert.True(PricingConfig.Create(6, 100m).IsSuccess);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(10001)]
     public void FlightFactoryRejectsOutOfRangeCapacity(int capacity) =>

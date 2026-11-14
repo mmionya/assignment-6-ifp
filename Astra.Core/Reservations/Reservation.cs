@@ -4,6 +4,8 @@ public enum ReservationStatus { Confirmed, Cancelled }
 
 public sealed class Reservation
 {
+    public const int MaximumPassengers = 6;
+
     public string Id { get; }
     public string FlightId { get; }
     public int Passengers { get; }
@@ -25,7 +27,7 @@ public sealed class Reservation
     {
         if (!ReservationRules.ValidId(id) || !ReservationRules.ValidId(flightId))
             return Result<Reservation>.Failure("Reservation and flight Id must have 1 to 40 visible characters.");
-        if (passengers is < 1 or > 6) return Result<Reservation>.Failure("Passengers must be between 1 and 6.");
+        if (passengers is < 1 or > MaximumPassengers) return Result<Reservation>.Failure($"Passengers must be between 1 and {MaximumPassengers}.");
         if (!Enum.IsDefined(travelClass)) return Result<Reservation>.Failure("Unknown travel class.");
         if (!Enum.IsDefined(status)) return Result<Reservation>.Failure("Unknown reservation status.");
         if (totalUsd < 0m || totalUsd > ReservationRules.MaximumTotal || !ReservationRules.IsMoney(totalUsd))
